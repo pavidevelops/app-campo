@@ -110,7 +110,11 @@
         if (json && json.status === 'OK') {
           successMessage.style.display = 'block';
           form.reset();
-          setTimeout(() => successMessage.style.display = 'none', 5000);
+          
+          // Redireciona para index.html após 2 segundos
+          setTimeout(() => {
+            window.location.href = 'index.html';
+          }, 2000);
         } else {
           throw new Error(json?.mensagem || 'Erro ao cadastrar.');
         }
@@ -122,4 +126,3 @@
   </script>
 </body>
 </html>
-
