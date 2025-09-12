@@ -163,9 +163,11 @@
         }
 
         if(data && data.status === 'OK'){
-          showMsg(msgOk, 'Bem-vindo, ' + (data.nome || inputUser.value.trim()) + '!');
-          // Redirecione se quiser:
-          // window.location.href = 'seletor_lotes.html';
+          showMsg(msgOk, 'Bem-vindo, ' + (data.nome || inputUser.value.trim()) + '! Redirecionando em 2 segundos...');
+          // Redireciona após 2 segundos
+          setTimeout(() => {
+            window.location.href = 'seletor_lotes.html';
+          }, 2000);
           form.reset();
         }else{
           throw new Error(data?.mensagem || 'Usuário ou senha inválidos.');
