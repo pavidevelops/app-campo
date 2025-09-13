@@ -36,7 +36,7 @@
     .muted{color:var(--muted);font-size:13px}
     .hidden{display:none!important}
 
-    /* ===== overlay de envio (adição) ===== */
+    /* ===== overlay de envio ===== */
     .sending{
       position:fixed; inset:0; background:rgba(255,255,255,.85);
       display:flex; align-items:center; justify-content:center;
@@ -89,15 +89,14 @@
   </section>
 </div>
 
-<!-- ===== overlay com a animação (adição) ===== -->
+<!-- overlay com a animação -->
 <div id="sendingOverlay" class="sending hidden" aria-hidden="true">
   <img src="send_data.gif" alt="Enviando…"/>
 </div>
-<!-- =========================================== -->
 
 <script>
 /* ====== CONFIGURE AQUI ====== */
-const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxp4jFtbtORDnpvyaHBNFkZXudJsdA6sQMm3rTEorMuAsh_5aSBl7YZMEghrZrAHJMC/exec';   // <- sua /exec
+const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxp4jFtbtORDnpvyaHBNFkZXudJsdA6sQMm3rTEorMuAsh_5aSBl7YZMEghrZrAHJMC/exec';   // sua /exec
 const APP_VERSION = '1.0';
 const LOTE = '08';
 /* ============================ */
@@ -149,7 +148,7 @@ const els = {
   retry: document.getElementById('new-photo'),
   cancel: document.getElementById('cancel'),
   status: document.getElementById('status'),
-  sendingOverlay: document.getElementById('sendingOverlay') // (adição)
+  sendingOverlay: document.getElementById('sendingOverlay')
 };
 
 let stream=null;
@@ -200,7 +199,6 @@ async function openCamera(atividade){
     return;
   }
 
-  // tenta capturar posição já aqui
   capturePosition();
 }
 
@@ -234,10 +232,8 @@ els.capture.onclick = () => {
   els.canvas.height = h;
   const ctx = els.canvas.getContext('2d');
 
-  // desenha frame
   ctx.drawImage(els.video, 0, 0, w, h);
 
-  // watermark simples (data/hora + atividade + coords)
   const now = new Date();
   const dateStr = now.toLocaleString();
   ctx.fillStyle='rgba(0,0,0,.35)';
@@ -251,7 +247,6 @@ els.capture.onclick = () => {
       : `Sem GPS`;
   ctx.fillText(`${dateStr}  •  ${locLine}`, 16, h-28);
 
-  // fecha câmera p/ economizar
   if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
 
   els.camCard.classList.add('hidden');
@@ -260,7 +255,6 @@ els.capture.onclick = () => {
 };
 
 els.retry.onclick = () => {
-  // Corrigir (refazer) mantém atividade/obs
   openCamera({cod: currentCode, atividade: currentActivity});
 };
 
@@ -281,81 +275,68 @@ els.save.onclick = async () => {
     const obs = (els.comment.value || '').trim();
     const uuid = makeUUID();
 
-    // mostra animação durante todo o envio
     showSending(true);
+    setStatus('Processando…');
 
-    // 1) Upload da foto
-    setStatus('Enviando foto…');
-    const dataURL = els.canvas.toDataURL('image/jpeg', 0.8); // já comprimido
-    const up = await postForm(WEBAPP_URL, {
-      action:'upload_foto',
+    // Gera a imagem (com marca d’água) em base64
+    const dataURL = els.canvas.toDataURL('image/jpeg', 0.8);
+
+    // Monta o item da fila (o módulo decide: envia já ou guarda offline)
+    const item = {
+      submission_uuid: uuid,
+      app_version: APP_VERSION,
       usuario,
       lote: LOTE,
       cod_atividade: currentCode,
       atividade: currentActivity,
-      app_version: APP_VERSION,
-      submission_uuid: uuid,
+      obs,
       lat: currentLat ?? '',
       long: currentLng ?? '',
       accuracy_m: accuracyM ?? '',
-      foto_base64: dataURL
-    });
+      foto_base64: dataURL,
+      created_at: Date.now(),
+      WEBAPP_URL
+    };
 
-    if(!up || up.status!=='OK'){ throw new Error(up && up.mensagem ? up.mensagem : 'Falha no upload da foto'); }
+    // Usa a fila: online -> envia; offline -> guarda pendência
+    const res = await window._EVIDENTE_QUEUE_OR_SEND_NOW(item);
 
-    // 2) Gravar linha B→I na lt_08  (AGORA COM submission_uuid PARA IDEMPOTÊNCIA)
-    setStatus('Enviando dados…');
-    const grava = await postForm(WEBAPP_URL, {
-      action:'gravar_linha_lt08',
-      submission_uuid: uuid,            // << ADICIONADO: idempotência da linha
-      data_hora: new Date().toISOString(),  // A (servidor usa)
-      app_version: APP_VERSION,             // B
-      usuario,                              // C
-      cod_atividade: currentCode,           // D
-      atividade: currentActivity,           // E
-      foto: up.foto_url || '',              // F (URL)
-      foto_id: up.foto_id || '',            // opcional (server pode montar =IMAGE)
-      lat: currentLat ?? '',                // G
-      long: currentLng ?? '',               // H
-      obs                                   // I
-    });
+    if(res.sent){
+      setStatus('✅ Enviado!');
+      alert('Registro enviado!');
+      resetAll();
+      window.scrollTo({top:0, behavior:'smooth'});
+    } else {
+      setStatus('📦 Sem internet: registro salvo. Será enviado automaticamente quando a rede voltar.');
+      alert('Sem internet: pendência salva. Vamos enviar assim que a rede voltar.');
+      resetAll();
+      window.scrollTo({top:0, behavior:'smooth'});
+    }
 
-    if(!grava || grava.status!=='OK'){ throw new Error(grava && grava.mensagem ? grava.mensagem : 'Falha ao gravar a linha'); }
-
-    setStatus('✅ Enviado com sucesso!');
-    alert('Registro enviado!');
-    resetAll();
-    window.scrollTo({top:0, behavior:'smooth'});
   }catch(err){
     console.error(err);
     setStatus('❌ '+err.message);
     alert('Erro: '+err.message);
   } finally {
-    // esconde a animação mesmo em erro
     showSending(false);
   }
 };
 
 /* ===== helpers ===== */
 function setStatus(t){ els.status.textContent=t; }
-
-function showSending(on){
-  els.sendingOverlay.classList.toggle('hidden', !on);
-}
-
+function showSending(on){ els.sendingOverlay.classList.toggle('hidden', !on); }
 function getUsuario(){
   return localStorage.getItem('nome')
       || localStorage.getItem('usuario_nome')
       || localStorage.getItem('usuario')
       || 'Usuário';
 }
-
 function makeUUID(){
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c=>{
     const r=Math.random()*16|0,v=c==='x'?r:(r&0x3|0x8);return v.toString(16);
   });
 }
-
+// postForm pode continuar aqui (não é mais usado nesta página, mas não atrapalha)
 async function postForm(url, data){
   const body = new URLSearchParams();
   Object.keys(data).forEach(k=> body.append(k, data[k]));
@@ -366,7 +347,6 @@ async function postForm(url, data){
   });
   return resp.ok ? resp.json() : Promise.reject(new Error('Failed to fetch'));
 }
-
 function resetAll(){
   if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
   currentActivity=null; currentCode=null;
@@ -376,6 +356,13 @@ function resetAll(){
   els.previewCard.classList.add('hidden');
 }
 </script>
+
+<!-- Importa a fila offline -->
+<script type="module" src="/app-campo/queue.js"></script>
+<script type="module">
+  import { queueOrSendNow } from '/app-campo/queue.js';
+  // expõe para o código acima
+  window._EVIDENTE_QUEUE_OR_SEND_NOW = queueOrSendNow;
+</script>
 </body>
 </html>
-
