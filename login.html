@@ -80,6 +80,20 @@
     .hint{ color:var(--muted); font-size:12px; margin-top:6px }
   </style>
 </head>
+
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker
+      .register('/app-campo/service-worker.js')
+      .catch(err => console.error('SW falhou:', err));
+  });
+}
+</script>
+
+
+
+  
 <body>
   <main class="card">
     <div class="logo">
@@ -201,15 +215,7 @@
   });
   </script>
 
-<script>
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker
-      .register('/app-campo/service-worker.js')
-      .catch(err => console.error('SW falhou:', err));
-  });
-}
-</script>
+
 
 
 
