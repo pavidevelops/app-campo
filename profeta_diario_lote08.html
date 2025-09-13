@@ -303,17 +303,18 @@ els.save.onclick = async () => {
 
     if(!up || up.status!=='OK'){ throw new Error(up && up.mensagem ? up.mensagem : 'Falha no upload da foto'); }
 
-    // 2) Gravar linha B→I na lt_08
+    // 2) Gravar linha B→I na lt_08  (AGORA COM submission_uuid PARA IDEMPOTÊNCIA)
     setStatus('Enviando dados…');
     const grava = await postForm(WEBAPP_URL, {
       action:'gravar_linha_lt08',
+      submission_uuid: uuid,            // << ADICIONADO: idempotência da linha
       data_hora: new Date().toISOString(),  // A (servidor usa)
       app_version: APP_VERSION,             // B
       usuario,                              // C
       cod_atividade: currentCode,           // D
       atividade: currentActivity,           // E
       foto: up.foto_url || '',              // F (URL)
-      foto_id: up.foto_id || '',            // (opcional) se server montar IMAGE()
+      foto_id: up.foto_id || '',            // opcional (server pode montar =IMAGE)
       lat: currentLat ?? '',                // G
       long: currentLng ?? '',               // H
       obs                                   // I
@@ -377,3 +378,4 @@ function resetAll(){
 </script>
 </body>
 </html>
+
