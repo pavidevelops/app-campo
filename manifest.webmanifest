@@ -1,0 +1,13 @@
+{
+  "name": "Evidente",
+  "short_name": "Evidente",
+  "start_url": "/app-campo/index.html",
+  "scope": "/app-campo/",
+  "display": "standalone",
+  "background_color": "#0b1220",
+  "theme_color": "#0b1220",
+  "icons": [
+    { "src": "/app-campo/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/app-campo/icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
