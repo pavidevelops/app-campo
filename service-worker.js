@@ -1,10 +1,10 @@
-/* Evidente SW – precache + offline fallback */
-const BASE = '/app-campo/';           // escopo do GitHub Pages do seu repo
-const CACHE_NAME = 'evidente-v1';     // mude para v2, v3... quando atualizar assets
+/* Evidente SW – precache + offline fallback (GitHub Pages /app-campo/) */
+const BASE = '/app-campo/';            // escopo do seu site
+const CACHE_NAME = 'evidente-v2';      // mude para v3, v4... quando atualizar assets
 
 // Arquivos essenciais que devem abrir offline
 const PRECACHE_URLS = [
-  BASE,                               // resolve para index
+  BASE,                                // index
   BASE + 'index.html',
   BASE + 'login.html',
   BASE + 'primeiro_acesso.html',
@@ -12,18 +12,27 @@ const PRECACHE_URLS = [
   BASE + 'profeta_diario_lote08.html',
   BASE + 'offline.html',
   BASE + 'manifest.webmanifest',
+  BASE + 'queue.js',                   // fila offline
   BASE + 'send_data.gif',
-  BASE + 'inicial.jpg',               // se você usa essa imagem na home
+  BASE + 'inicial.jpg',                // se existir na home
+  BASE + 'provider.jpg',               // logo do login (se não existir, será ignorado)
   BASE + 'icons/icon-192.png',
   BASE + 'icons/icon-512.png'
-  // adicione aqui outros CSS/JS/imagens fixos quando criar
+  // adicione aqui outros CSS/JS/imagens fixos conforme for criando
 ];
 
-// Instala e pré-carrega o essencial
+// Instala e pré-carrega (tolerante a arquivos ausentes)
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
     const cache = await caches.open(CACHE_NAME);
-    await cache.addAll(PRECACHE_URLS);
+    for (const url of PRECACHE_URLS) {
+      try {
+        await cache.add(url);
+      } catch (e) {
+        // Se algum arquivo não existir/404, apenas registra no console e segue.
+        console.warn('[SW] Pulando no precache:', url, e?.message || e);
+      }
+    }
     self.skipWaiting(); // ativa logo a nova versão
   })());
 });
@@ -32,7 +41,7 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
     const names = await caches.keys();
-    await Promise.all(names.map(n => (n !== CACHE_NAME) && caches.delete(n)));
+    await Promise.all(names.map((n) => (n !== CACHE_NAME) && caches.delete(n)));
     self.clients.claim(); // assume controle sem precisar recarregar
   })());
 });
@@ -53,8 +62,9 @@ self.addEventListener('fetch', (event) => {
     event.respondWith((async () => {
       try {
         const fresh = await fetch(req, { cache: 'no-store' });
+        // atualiza cache em segundo plano
         const cache = await caches.open(CACHE_NAME);
-        cache.put(req, fresh.clone());      // atualiza cache em segundo plano
+        cache.put(req, fresh.clone());
         return fresh;
       } catch {
         const cache = await caches.open(CACHE_NAME);
@@ -68,9 +78,9 @@ self.addEventListener('fetch', (event) => {
     event.respondWith((async () => {
       const cache = await caches.open(CACHE_NAME);
       const cached = await cache.match(req);
-      if (cached) return cached;            // rápido do cache
+      if (cached) return cached; // rápido do cache
       try {
-        const fresh = await fetch(req);     // busca e guarda
+        const fresh = await fetch(req); // busca e guarda
         cache.put(req, fresh.clone());
         return fresh;
       } catch {
