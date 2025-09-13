@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Evidente • Lote 08</title>
+  <style>
+    :root{
+      --primary:#5A8DEE;--primary-600:#4B7CE0;--success:#10B981;--danger:#EF4444;--warn:#F59E0B;--text:#0F172A;--muted:#64748B;--bg:#EEF5FF;--card:#fff;--border:#DBE6FF;
+    }
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;background:var(--bg);color:var(--text)}
+    .container{max-width:900px;margin:0 auto;padding:16px}
+    header{background:linear-gradient(135deg,var(--primary),var(--primary-600));color:#fff;border-radius:12px;padding:16px 14px;margin-bottom:16px;box-shadow:0 6px 18px rgba(0,0,0,0.08)}
+    h1{margin:0 0 4px;font-size:20px}
+    .subtitle{opacity:.9;font-size:14px}
+    .search-container{position:sticky;top:0;z-index:5;background:var(--bg);padding:10px 0}
+    #search{width:100%;padding:12px 14px;border:1px solid var(--border);border-radius:999px;background:#fff;font-size:16px;outline:none}
+    #search:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(90,141,238,.2)}
+    .buttons-container{display:grid;grid-template-columns:1fr;gap:8px;max-height:44vh;overflow:auto;margin-top:8px}
+    .activity-btn{background:#fff;border:1px solid var(--border);border-radius:10px;padding:12px 14px;text-align:left;cursor:pointer;transition:.15s;box-shadow:0 2px 6px rgba(0,0,0,.04)}
+    .activity-btn strong{color:var(--primary)}
+    .activity-btn:active{transform:scale(.98);background:#F4F8FF}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-top:14px;box-shadow:0 6px 18px rgba(0,0,0,.06)}
+    .section-title{margin:0 0 10px;font-weight:700}
+    #camera{width:100%;aspect-ratio:4/3;background:#0b1220;border-radius:10px}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+    button{padding:12px;border:0;border-radius:10px;font-weight:700;cursor:pointer}
+    .btn-ok{background:var(--success);color:#fff}
+    .btn-warn{background:var(--warn);color:#fff}
+    .btn-secondary{background:#94A3B8;color:#fff}
+    .btn-danger{background:var(--danger);color:#fff}
+    #photoCanvas{max-width:100%;border:1px solid var(--border);border-radius:10px;display:block;margin:0 auto}
+    textarea{width:100%;min-height:110px;border:1px solid var(--border);border-radius:10px;padding:12px;font-size:15px}
+    .muted{color:var(--muted);font-size:13px}
+    .hidden{display:none!important}
+
+    /* ===== overlay de envio (adição) ===== */
+    .sending{
+      position:fixed; inset:0; background:rgba(255,255,255,.85);
+      display:flex; align-items:center; justify-content:center;
+      z-index:9999;
+    }
+    .sending img{ width:min(240px,50vw); height:auto; display:block; }
+    /* ===================================== */
+
+    @media (max-width:520px){.grid2,.grid3{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>Evidente — Lote 08</h1>
+    <div class="subtitle">Selecione a atividade, capture a foto e envie para a planilha</div>
+  </header>
+
+  <div class="search-container">
+    <input id="search" placeholder="Buscar atividade..." autocomplete="off"/>
+  </div>
+
+  <div id="buttons-container" class="buttons-container"></div>
+
+  <!-- Câmera -->
+  <section id="camera-card" class="card hidden">
+    <h2 class="section-title" id="camera-title">Câmera</h2>
+    <video id="camera" autoplay playsinline></video>
+    <div class="grid2" style="margin-top:10px">
+      <button id="capture" class="btn-ok">Capturar Foto</button>
+      <button id="close-camera" class="btn-danger">Fechar Câmera</button>
+    </div>
+    <div class="muted" id="gps-hint" style="margin-top:8px">Aguardando localização… permita o acesso ao GPS.</div>
+  </section>
+
+  <!-- Prévia -->
+  <section id="preview-card" class="card hidden">
+    <h2 class="section-title">Pré-visualização</h2>
+    <canvas id="photoCanvas"></canvas>
+    <div style="margin-top:12px">
+      <label class="muted">Observação (opcional)</label>
+      <textarea id="comment" placeholder="Ex.: ponto com obstrução, material recolhido, etc."></textarea>
+    </div>
+    <div class="grid3" style="margin-top:12px">
+      <button id="save" class="btn-ok">Usar / Enviar</button>
+      <button id="new-photo" class="btn-secondary">Corrigir (refazer)</button>
+      <button id="cancel" class="btn-danger">Cancelar</button>
+    </div>
+    <div class="muted" id="status" style="margin-top:10px"></div>
+  </section>
+</div>
+
+<!-- ===== overlay com a animação (adição) ===== -->
+<div id="sendingOverlay" class="sending hidden" aria-hidden="true">
+  <img src="send_data.gif" alt="Enviando…"/>
+</div>
+<!-- =========================================== -->
+
+<script>
+/* ====== CONFIGURE AQUI ====== */
+const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxp4jFtbtORDnpvyaHBNFkZXudJsdA6sQMm3rTEorMuAsh_5aSBl7YZMEghrZrAHJMC/exec';   // <- sua /exec
+const APP_VERSION = '1.0';
+const LOTE = '08';
+/* ============================ */
+
+// atividades (as do seu arquivo)
+const atividades = [
+  { cod:"421100", atividade:"CAIXA DE RETENÇÃO" },
+  { cod:"804300", atividade:"CAPINA MANUAL" },
+  { cod:"600420", atividade:"DESOBSTRUÇÃO DE SARJETA" },
+  { cod:"691600", atividade:"ESCAVAÇÃO MANUAL DE VALAS" },
+  { cod:"690311", atividade:"Limpeza de bueiro / conservação" },
+  { cod:"801200", atividade:"Limpeza de faixa de domínio" },
+  { cod:"600410", atividade:"Limpeza de sarjeta" },
+  { cod:"693301", atividade:"Limpeza e desobstrução de bueiros" },
+  { cod:"695059", atividade:"Limpeza e desobstrução mecanizada" },
+  { cod:"800900", atividade:"Limpeza e lava em de sinalização" },
+  { cod:"801100", atividade:"Limpeza e pintura de abrigo" },
+  { cod:"600510", atividade:"Limpeza e pintura de meio fio" },
+  { cod:"700900", atividade:"Limpeza e pintura de ponte" },
+  { cod:"610200", atividade:"Limpeza manual de valeta" },
+  { cod:"805460", atividade:"Poda de árvores" },
+  { cod:"891590", atividade:"Recomposição de defensa metálica" },
+  { cod:"650110", atividade:"Recomposiçao de sarjeta de concreto" },
+  { cod:"801000", atividade:"Recomposição de sinalização vertical" },
+  { cod:"895461", atividade:"Regularização mecânica da faixa" },
+  { cod:"895565", atividade:"Remoção de árvores da pista" },
+  { cod:"895660", atividade:"Remoção de defensa metálica" },
+  { cod:"403430", atividade:"Remoção e transporte manual" },
+  { cod:"403450", atividade:"Remoção mecanizada barreira" },
+  { cod:"890420", atividade:"Renovação manual da sinalização" },
+  { cod:"801400", atividade:"Roçada manual" },
+  { cod:"891401", atividade:"Roçada mecanizada com roçadeira" },
+  { cod:"795011", atividade:"Fornecimento e aplicação de Grout" }
+];
+
+const els = {
+  search: document.getElementById('search'),
+  list: document.getElementById('buttons-container'),
+  camCard: document.getElementById('camera-card'),
+  camTitle: document.getElementById('camera-title'),
+  video: document.getElementById('camera'),
+  capture: document.getElementById('capture'),
+  closeCam: document.getElementById('close-camera'),
+  gpsHint: document.getElementById('gps-hint'),
+  previewCard: document.getElementById('preview-card'),
+  canvas: document.getElementById('photoCanvas'),
+  comment: document.getElementById('comment'),
+  save: document.getElementById('save'),
+  retry: document.getElementById('new-photo'),
+  cancel: document.getElementById('cancel'),
+  status: document.getElementById('status'),
+  sendingOverlay: document.getElementById('sendingOverlay') // (adição)
+};
+
+let stream=null;
+let currentActivity=null;
+let currentCode=null;
+let currentLat=null, currentLng=null, accuracyM=null;
+
+document.addEventListener('DOMContentLoaded', () => {
+  renderList(atividades);
+  els.search.addEventListener('input', () => {
+    const t = els.search.value.toLowerCase();
+    const filtered = atividades.filter(a =>
+      a.cod.toLowerCase().includes(t) || a.atividade.toLowerCase().includes(t)
+    );
+    renderList(filtered);
+  });
+});
+
+function renderList(arr){
+  els.list.innerHTML='';
+  if(!arr.length){ els.list.innerHTML='<div class="muted">Nada encontrado.</div>'; return; }
+  const frag = document.createDocumentFragment();
+  arr.forEach(a=>{
+    const b=document.createElement('button');
+    b.className='activity-btn';
+    b.innerHTML=`<strong>${a.cod}</strong> ${a.atividade}`;
+    b.onclick=()=> openCamera(a);
+    frag.appendChild(b);
+  });
+  els.list.appendChild(frag);
+}
+
+async function openCamera(atividade){
+  currentActivity = atividade.atividade;
+  currentCode = atividade.cod;
+  els.camTitle.textContent = `${atividade.cod} — ${atividade.atividade}`;
+  els.camCard.classList.remove('hidden');
+  els.previewCard.classList.add('hidden');
+  els.status.textContent='';
+
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:'environment', width:{ideal:1280}, height:{ideal:720}}
+    });
+    els.video.srcObject = stream;
+  }catch(err){
+    alert('Não foi possível abrir a câmera: '+err.message);
+    return;
+  }
+
+  // tenta capturar posição já aqui
+  capturePosition();
+}
+
+function capturePosition(){
+  if(!('geolocation' in navigator)){
+    els.gpsHint.textContent='GPS indisponível neste dispositivo.';
+    return;
+  }
+  els.gpsHint.textContent='Capturando posição…';
+  navigator.geolocation.getCurrentPosition(
+    pos=>{
+      currentLat = pos.coords.latitude;
+      currentLng = pos.coords.longitude;
+      accuracyM = Math.round(pos.coords.accuracy);
+      els.gpsHint.textContent = `LAT ${currentLat.toFixed(6)}  LONG ${currentLng.toFixed(6)}  (±${accuracyM} m)`;
+    },
+    err=>{
+      els.gpsHint.textContent = 'Sem acesso ao GPS (permita a localização para registrar LAT/LONG).';
+    },
+    {enableHighAccuracy:true, timeout:8000, maximumAge:0}
+  );
+}
+
+els.capture.onclick = () => {
+  if(!stream){ alert('Abra a câmera primeiro.'); return; }
+
+  const w = els.video.videoWidth || 1280;
+  const h = els.video.videoHeight || 720;
+
+  els.canvas.width = w;
+  els.canvas.height = h;
+  const ctx = els.canvas.getContext('2d');
+
+  // desenha frame
+  ctx.drawImage(els.video, 0, 0, w, h);
+
+  // watermark simples (data/hora + atividade + coords)
+  const now = new Date();
+  const dateStr = now.toLocaleString();
+  ctx.fillStyle='rgba(0,0,0,.35)';
+  ctx.fillRect(0, h-92, w, 92);
+  ctx.fillStyle='#fff';
+  ctx.font='bold 22px Arial';
+  ctx.fillText(`${currentCode} - ${currentActivity}`, 16, h-60);
+  ctx.font='16px Arial';
+  const locLine = (currentLat && currentLng)
+      ? `LAT ${currentLat.toFixed(6)}  LONG ${currentLng.toFixed(6)}  (±${accuracyM||'?'} m)`
+      : `Sem GPS`;
+  ctx.fillText(`${dateStr}  •  ${locLine}`, 16, h-28);
+
+  // fecha câmera p/ economizar
+  if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
+
+  els.camCard.classList.add('hidden');
+  els.previewCard.classList.remove('hidden');
+  els.previewCard.scrollIntoView({behavior:'smooth'});
+};
+
+els.retry.onclick = () => {
+  // Corrigir (refazer) mantém atividade/obs
+  openCamera({cod: currentCode, atividade: currentActivity});
+};
+
+els.cancel.onclick = () => {
+  resetAll();
+};
+
+els.closeCam.onclick = () => {
+  if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
+  els.camCard.classList.add('hidden');
+};
+
+els.save.onclick = async () => {
+  try{
+    if(!currentActivity || !currentCode){ alert('Selecione uma atividade.'); return; }
+
+    const usuario = getUsuario();
+    const obs = (els.comment.value || '').trim();
+    const uuid = makeUUID();
+
+    // mostra animação durante todo o envio
+    showSending(true);
+
+    // 1) Upload da foto
+    setStatus('Enviando foto…');
+    const dataURL = els.canvas.toDataURL('image/jpeg', 0.8); // já comprimido
+    const up = await postForm(WEBAPP_URL, {
+      action:'upload_foto',
+      usuario,
+      lote: LOTE,
+      cod_atividade: currentCode,
+      atividade: currentActivity,
+      app_version: APP_VERSION,
+      submission_uuid: uuid,
+      lat: currentLat ?? '',
+      long: currentLng ?? '',
+      accuracy_m: accuracyM ?? '',
+      foto_base64: dataURL
+    });
+
+    if(!up || up.status!=='OK'){ throw new Error(up && up.mensagem ? up.mensagem : 'Falha no upload da foto'); }
+
+    // 2) Gravar linha B→I na lt_08
+    setStatus('Enviando dados…');
+    const grava = await postForm(WEBAPP_URL, {
+      action:'gravar_linha_lt08',
+      data_hora: new Date().toISOString(),  // A (servidor usa)
+      app_version: APP_VERSION,             // B
+      usuario,                              // C
+      cod_atividade: currentCode,           // D
+      atividade: currentActivity,           // E
+      foto: up.foto_url || '',              // F (URL)
+      foto_id: up.foto_id || '',            // (opcional) se server montar IMAGE()
+      lat: currentLat ?? '',                // G
+      long: currentLng ?? '',               // H
+      obs                                   // I
+    });
+
+    if(!grava || grava.status!=='OK'){ throw new Error(grava && grava.mensagem ? grava.mensagem : 'Falha ao gravar a linha'); }
+
+    setStatus('✅ Enviado com sucesso!');
+    alert('Registro enviado!');
+    resetAll();
+    window.scrollTo({top:0, behavior:'smooth'});
+  }catch(err){
+    console.error(err);
+    setStatus('❌ '+err.message);
+    alert('Erro: '+err.message);
+  } finally {
+    // esconde a animação mesmo em erro
+    showSending(false);
+  }
+};
+
+/* ===== helpers ===== */
+function setStatus(t){ els.status.textContent=t; }
+
+function showSending(on){
+  els.sendingOverlay.classList.toggle('hidden', !on);
+}
+
+function getUsuario(){
+  return localStorage.getItem('nome')
+      || localStorage.getItem('usuario_nome')
+      || localStorage.getItem('usuario')
+      || 'Usuário';
+}
+
+function makeUUID(){
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c=>{
+    const r=Math.random()*16|0,v=c==='x'?r:(r&0x3|0x8);return v.toString(16);
+  });
+}
+
+async function postForm(url, data){
+  const body = new URLSearchParams();
+  Object.keys(data).forEach(k=> body.append(k, data[k]));
+  const resp = await fetch(url, {
+    method:'POST',
+    headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body: body.toString()
+  });
+  return resp.ok ? resp.json() : Promise.reject(new Error('Failed to fetch'));
+}
+
+function resetAll(){
+  if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
+  currentActivity=null; currentCode=null;
+  currentLat=null; currentLng=null; accuracyM=null;
+  els.comment.value='';
+  els.camCard.classList.add('hidden');
+  els.previewCard.classList.add('hidden');
+}
+</script>
+</body>
+</html>
