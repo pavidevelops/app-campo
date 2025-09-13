@@ -1,8 +1,12 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
+      <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="manifest" href="/app-campo/manifest.webmanifest">
+<meta name="theme-color" content="#0b1220">
+
+  
     <title>PAVI - Serviços Ambientais</title>
     <style>
         * {
@@ -132,5 +136,14 @@
             window.location.href = 'login.html';
         }, 8000);
     </script>
+
+    <script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/app-campo/service-worker.js');
+  });
+}
+</script>
+
 </body>
 </html>
