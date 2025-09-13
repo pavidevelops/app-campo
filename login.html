@@ -35,7 +35,7 @@
       margin-bottom: 16px;
     }
     .logo img {
-      width: 240px; /* Aumentado para 5x o tamanho anterior (80px -> 240px) */
+      width: 240px;
       height: auto;
       max-width: 100%;
     }
@@ -44,9 +44,7 @@
     }
     .subtitle{ text-align:center; color:var(--muted); font-size:14px; margin-bottom:18px }
     label{ display:block; font-size:14px; margin:10px 0 6px }
-    .field{
-      position:relative;
-    }
+    .field{ position:relative; }
     input{
       width:100%; padding:12px 44px 12px 12px; border-radius:10px;
       border:1px solid var(--border); outline:none; background:#fff; color:var(--text);
@@ -70,9 +68,7 @@
     .btn:active{ transform:translateY(1px) }
     .btn[disabled]{ opacity:.7; cursor:not-allowed; box-shadow:none }
     .row{ margin-bottom:14px }
-    .link{
-      text-align:center; margin-top:12px;
-    }
+    .link{ text-align:center; margin-top:12px; }
     .link a{ color:var(--primary-700); text-decoration:none; font-weight:600 }
     .msg{ display:none; margin-top:12px; padding:10px 12px; border-radius:10px; font-size:14px; }
     .msg.ok{ background:var(--ok-bg); color:var(--ok); border:1px solid var(--ok-br) }
@@ -91,9 +87,6 @@ if ('serviceWorker' in navigator) {
 }
 </script>
 
-
-
-  
 <body>
   <main class="card">
     <div class="logo">
@@ -141,12 +134,31 @@ if ('serviceWorker' in navigator) {
     const msgErr = document.getElementById('msgErr');
     const firstAccess = document.getElementById('firstAccess');
 
-    // 🔗 Cole a URL /exec da implantação do seu Apps Script
+    // 🔗 Sua URL /exec do Apps Script
     const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbzrhlcJXYD_V19BC1scpM5eGUUo3SOyc_k4scIcd4vg4Ii3szlWqjFYsyjwi4B9SkpU0w/exec';
 
-    // Util: exibe mensagem
+    // Util: exibe/oculta mensagens
     function showMsg(el, text){ el.textContent = text; el.style.display = 'block'; }
     function hideMsgs(){ msgOk.style.display = 'none'; msgErr.style.display = 'none'; }
+
+    // ====== NOVO: sessão local para login offline ======
+    function getSavedSession(){
+      try { return JSON.parse(localStorage.getItem('session') || ''); } catch { return null; }
+    }
+    function saveSession(usuario, nome){
+      const sess = {
+        usuario,
+        nome: nome || usuario,
+        ts: Date.now(),
+        exp: Date.now() + 30*24*60*60*1000 // 30 dias
+      };
+      localStorage.setItem('session', JSON.stringify(sess));
+      // chaves que o resto do app já usa:
+      localStorage.setItem('usuario', usuario);
+      localStorage.setItem('nome', sess.nome);
+    }
+    function gotoApp(){ window.location.href = 'seletor_lotes.html'; }
+    // ====================================================
 
     // Alternar visibilidade da senha
     toggleBtn.addEventListener('click', () => {
@@ -165,7 +177,7 @@ if ('serviceWorker' in navigator) {
       return true;
     }
 
-    // Submit com form-urlencoded (evita preflight/CORS)
+    // Submit com form-urlencoded (evita preflight/CORS) + fallback offline
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       if(!validate()) return;
@@ -173,10 +185,31 @@ if ('serviceWorker' in navigator) {
       submitBtn.disabled = true;
       submitBtn.textContent = 'Entrando...';
 
+      const typedUser = inputUser.value.trim();
+
+      // --- OFFLINE: permitir entrada se já houver sessão salva para este e-mail ---
+      if (!navigator.onLine) {
+        const sess = getSavedSession();
+        if (sess && sess.usuario && sess.exp > Date.now()
+            && typedUser.toLowerCase() === String(sess.usuario).toLowerCase()) {
+          showMsg(msgOk, 'Bem-vindo (modo offline), ' + (sess.nome || typedUser) + '! Redirecionando...');
+          setTimeout(() => { gotoApp(); }, 1200);
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Entrar';
+          return;
+        } else {
+          showMsg(msgErr, 'Sem internet. Faça login online uma vez com este usuário para habilitar o acesso offline.');
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Entrar';
+          return;
+        }
+      }
+
+      // --- ONLINE: fluxo normal de login no Apps Script ---
       try{
         const body = new URLSearchParams({
           action: 'login',
-          usuario: inputUser.value.trim(),
+          usuario: typedUser,
           senha: inputPass.value
         });
 
@@ -190,17 +223,25 @@ if ('serviceWorker' in navigator) {
         }
 
         if(data && data.status === 'OK'){
-          showMsg(msgOk, 'Bem-vindo, ' + (data.nome || inputUser.value.trim()) + '! Redirecionando em 2 segundos...');
-          // Redireciona após 2 segundos
-          setTimeout(() => {
-            window.location.href = 'seletor_lotes.html';
-          }, 2000);
+          // salva sessão para permitir entrada offline no futuro
+          saveSession(typedUser, data.nome);
+
+          showMsg(msgOk, 'Bem-vindo, ' + (data.nome || typedUser) + '! Redirecionando em 2 segundos...');
+          setTimeout(() => { gotoApp(); }, 2000);
           form.reset();
         }else{
           throw new Error(data?.mensagem || 'Usuário ou senha inválidos.');
         }
       }catch(err){
-        showMsg(msgErr, 'Não foi possível entrar: ' + err.message);
+        // Se deu erro (inclusive queda de rede), tente offline com sessão salva compatível
+        const sess = getSavedSession();
+        if (sess && sess.usuario && sess.exp > Date.now()
+            && typedUser.toLowerCase() === String(sess.usuario).toLowerCase()) {
+          showMsg(msgOk, 'Bem-vindo (modo offline), ' + (sess.nome || typedUser) + '! Redirecionando...');
+          setTimeout(() => { gotoApp(); }, 1200);
+        } else {
+          showMsg(msgErr, 'Não foi possível entrar: ' + err.message);
+        }
       }finally{
         submitBtn.disabled = false;
         submitBtn.textContent = 'Entrar';
@@ -214,11 +255,5 @@ if ('serviceWorker' in navigator) {
     });
   });
   </script>
-
-
-
-
-
-  
 </body>
 </html>
