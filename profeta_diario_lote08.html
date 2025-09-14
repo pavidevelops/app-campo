@@ -221,7 +221,7 @@ function openCamera(atividade){
         try { var p = els.video.play(); if (p && p.catch) p.catch(function(){}); } catch(e){}
         scrollToShow(els.camCard, 10);
       };
-      // fallback extra (alguns webviews não disparam o evento)
+      // fallback extra
       setTimeout(function(){ scrollToShow(els.camCard, 10); }, 300);
     })
     .catch(function(err){
@@ -289,68 +289,65 @@ els.closeCam.onclick = function(){
   window.scrollTo({top:0, behavior:'smooth'});
 };
 
-/* envio (mantido) */
-els.save.onclick = function(){
+/* ===== envio usando FILA OFFLINE ===== */
+els.save.onclick = function () {
   try{
     if(!currentActivity || !currentCode){ alert('Selecione uma atividade.'); return; }
+
     var usuario = getUsuario();
     var obs = (els.comment.value || '').trim();
     var uuid = makeUUID();
 
     showSending(true);
-    setStatus('Enviando foto…');
+    setStatus('Preparando registro…');
 
     var dataURL = els.canvas.toDataURL('image/jpeg', 0.8);
 
-    postFormXHR(WEBAPP_URL, {
-      action:'upload_foto',
-      usuario:usuario, lote: LOTE,
-      cod_atividade: currentCode, atividade: currentActivity,
-      app_version: APP_VERSION, submission_uuid: uuid,
-      lat: (currentLat!=null?currentLat:''), long: (currentLng!=null?currentLng:''), accuracy_m: (accuracyM!=null?accuracyM:''),
-      foto_base64: dataURL
-    }, function(up){
-      if(!up || up.status!=='OK'){ throwSend('Falha no upload da foto'); return; }
-      setStatus('Enviando dados…');
-      postFormXHR(WEBAPP_URL, {
-        action:'gravar_linha_lt08',
-        app_version: APP_VERSION, usuario: usuario,
-        cod_atividade: currentCode, atividade: currentActivity,
-        foto: up.foto_url || '', foto_id: up.foto_id || '',
-        lat: (currentLat!=null?currentLat:''), long: (currentLng!=null?currentLng:''), obs: obs
-      }, function(grava){
-        if(!grava || grava.status!=='OK'){ throwSend('Falha ao gravar a linha'); return; }
-        setStatus('✅ Enviado com sucesso!'); alert('Registro enviado!');
-        resetAll(); window.scrollTo({top:0, behavior:'smooth'}); showSending(false);
-      }, function(e2){ throwSend(e2); });
-    }, function(e1){ throwSend(e1); });
+    var item = {
+      submission_uuid: uuid,
+      app_version: APP_VERSION,
+      usuario: usuario,
+      lote: LOTE,
+      cod_atividade: currentCode,
+      atividade: currentActivity,
+      obs: obs,
+      lat: (currentLat!=null?currentLat:''),
+      long: (currentLng!=null?currentLng:''),
+      accuracy_m: (accuracyM!=null?accuracyM:''),
+      foto_base64: dataURL,
+      created_at: Date.now(),
+      WEBAPP_URL: WEBAPP_URL
+    };
 
-  }catch(err){ setStatus('❌ '+err); alert('Erro: '+err); showSending(false); }
+    // Se online envia agora; se offline salva na fila (IndexedDB)
+    window.EvidenteQueue.queueOrSendNow(item, {
+      onSent: function(){
+        setStatus('✅ Enviado com sucesso!');
+        alert('Registro enviado!');
+        resetAll();
+        window.scrollTo({top:0, behavior:'smooth'});
+        showSending(false);
+      },
+      onQueued: function(){
+        setStatus('📦 Sem internet: registro salvo. Será enviado automaticamente quando a conexão voltar.');
+        alert('Sem internet: registro salvo e será enviado assim que o aparelho reconectar.');
+        resetAll();
+        window.scrollTo({top:0, behavior:'smooth'});
+        showSending(false);
+      }
+    });
+
+  }catch(err){
+    setStatus('❌ '+err);
+    alert('Erro: '+err);
+    showSending(false);
+  }
 };
 
-function throwSend(msg){ setStatus('❌ '+msg); alert('Erro: '+msg); showSending(false); }
-
-/* helpers */
 function setStatus(t){ els.status.textContent=t; }
 function showSending(on){ els.sendingOverlay.classList.toggle('hidden', !on); }
 function getUsuario(){ return localStorage.getItem('nome')||localStorage.getItem('usuario_nome')||localStorage.getItem('usuario')||'Usuário'; }
 function makeUUID(){ return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,function(c){var r=Math.random()*16|0,v=c==='x'?r:(r&0x3|0x8);return v.toString(16);}); }
-
-function encodeForm(data){ var p=[],k; for(k in data){ if(data.hasOwnProperty(k)){ p.push(encodeURIComponent(k)+'='+encodeURIComponent(data[k])); } } return p.join('&'); }
-function postFormXHR(url, data, ok, err){
-  try{
-    var xhr=new XMLHttpRequest(); xhr.open('POST', url, true);
-    xhr.setRequestHeader('Content-Type','application/x-www-form-urlencoded');
-    xhr.onreadystatechange=function(){
-      if(xhr.readyState===4){
-        if(xhr.status>=200 && xhr.status<300){ try{ ok(JSON.parse(xhr.responseText)); }catch(e){ err('Resposta inválida'); } }
-        else{ err('HTTP '+xhr.status); }
-      }
-    };
-    xhr.onerror=function(){ err('Falha de rede'); };
-    xhr.send(encodeForm(data));
-  }catch(e){ err(String(e)); }
-}
 
 function resetAll(){
   if(stream){ try{ stream.getTracks().forEach(function(t){ t.stop(); }); }catch(e){} stream=null; }
@@ -361,5 +358,8 @@ function resetAll(){
   restoreList();
 }
 </script>
+
+<!-- ✅ carrega a fila offline (precisa existir em /app-campo/ no GitHub Pages) -->
+<script src="/app-campo/queue.js"></script>
 </body>
 </html>
