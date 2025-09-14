@@ -22,7 +22,9 @@
     .activity-btn strong{color:var(--primary)}
     .activity-btn:active{transform:scale(.98);background:#F4F8FF}
     .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-top:14px;box-shadow:0 6px 18px rgba(0,0,0,0.06)}
-    .section-title{margin:0 0 10px;font-weight:700}
+    .section-title{margin:0 0 10px;font-weight:700; display:flex; align-items:center; gap:12px}
+    .chk{display:inline-flex; align-items:center; gap:8px; font-weight:600; color:var(--text)}
+    .chk input{ width:18px; height:18px; }
     #camera{width:100%;background:#0b1220;border-radius:10px}
     .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
     .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
@@ -65,7 +67,13 @@
 
   <!-- Prévia -->
   <section id="preview-card" class="card hidden">
-    <h2 class="section-title">Pré-visualização</h2>
+    <h2 class="section-title">
+      Pré-visualização
+      <!-- NOVO: checkbox de chuva -->
+      <label class="chk" title="Marque se estava chovendo no momento da foto">
+        <input type="checkbox" id="rainChk"> chuva
+      </label>
+    </h2>
     <canvas id="photoCanvas"></canvas>
     <div style="margin-top:12px">
       <label class="muted">Observação (opcional)</label>
@@ -91,6 +99,11 @@ var WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxp4jFtbtORDnpvyaHBNFk
 var APP_VERSION = '1.0';
 var LOTE = '08';
 /* ==================== */
+
+/* Hook opcional para app nativo informar mock GPS */
+window.__EVIDENTE_MOCK = false;
+window.Evidente = window.Evidente || {};
+window.Evidente.setMockGps = function(isMock){ window.__EVIDENTE_MOCK = !!isMock; };
 
 /* lista fixa */
 var atividades = [
@@ -142,14 +155,15 @@ var els = {
   retry: document.getElementById('new-photo'),
   cancel: document.getElementById('cancel'),
   status: document.getElementById('status'),
-  sendingOverlay: document.getElementById('sendingOverlay')
+  sendingOverlay: document.getElementById('sendingOverlay'),
+  rainChk: document.getElementById('rainChk')   // NOVO
 };
 
 /* estados */
 var stream=null, currentActivity=null, currentCode=null;
-/* leituras “em tempo real” enquanto a câmera está aberta */
+/* leituras ao vivo */
 var currentLat=null, currentLng=null, accuracyM=null;
-/* FIX CONGELADO NO MOMENTO DO CLIQUE (usado no watermark e no envio) */
+/* FIX congelado no clique */
 var fixLat=null, fixLng=null, fixAcc=null;
 
 /* init UI */
@@ -183,7 +197,7 @@ function renderList(arr){
   }
 }
 
-/* util: rolar até um elemento com pequeno offset */
+/* util: rolar até um elemento com offset */
 function scrollToShow(el, offset){
   try{
     var rect = el.getBoundingClientRect();
@@ -231,7 +245,7 @@ function openCamera(atividade){
       restoreList();
     });
 
-  // enquanto usuário enquadra a foto, tenta obter posição “ao vivo”
+  // leituras ao vivo enquanto enquadra
   startLivePosition();
 }
 
@@ -241,9 +255,7 @@ function restoreList(){
   els.list.style.display = '';
 }
 
-/* ====== GPS: leitura ao vivo + fix fresco no clique ====== */
-
-/* atualiza “ao vivo” o hint, sem travar a UI */
+/* GPS ao vivo */
 function startLivePosition(){
   if(!('geolocation' in navigator)){
     els.gpsHint.textContent='GPS indisponível neste dispositivo.';
@@ -260,64 +272,41 @@ function startLivePosition(){
   }, {enableHighAccuracy:true, timeout:8000, maximumAge:0});
 }
 
-/* tenta obter um FIX fresco usando watchPosition até atingir precisão alvo ou estourar o tempo */
+/* tenta um fix fresco */
 function getFreshFix(targetAcc, maxWaitMs){
-  targetAcc = targetAcc || 30;   // metros
-  maxWaitMs = maxWaitMs || 7000; // 7s
+  targetAcc = targetAcc || 25;
+  maxWaitMs = maxWaitMs || 8000;
 
   return new Promise(function(resolve, reject){
     if(!('geolocation' in navigator)) return reject(new Error('GPS indisponível'));
 
-    var best = null;
-    var cleared = false;
+    var best = null, cleared = false;
+    function clearAll(){ if(cleared) return; cleared=true; try{ navigator.geolocation.clearWatch(wid); }catch(e){} clearTimeout(tid); }
+    function better(a,b){ if(!a) return b; if(!a.coords.accuracy) return b; if(!b.coords.accuracy) return a; return (b.coords.accuracy <= a.coords.accuracy) ? b : a; }
 
-    function clearAll(){
-      if (cleared) return;
-      cleared = true;
-      try{ navigator.geolocation.clearWatch(watchId); }catch(e){}
-      clearTimeout(timer);
-    }
-
-    function better(a,b){
-      if(!a) return b;
-      if(!a.coords.accuracy) return b;
-      if(!b.coords.accuracy) return a;
-      return (b.coords.accuracy <= a.coords.accuracy) ? b : a;
-    }
-
-    var watchId = navigator.geolocation.watchPosition(function(pos){
+    var wid = navigator.geolocation.watchPosition(function(pos){
       best = better(best, pos);
-      // atualiza hint para o usuário ver a acurácia chegando
       var acc = Math.round(pos.coords.accuracy||0);
       els.gpsHint.textContent = 'Precisão '+acc+' m — fixando localização…';
-      if (acc && acc <= targetAcc){
-        clearAll();
-        resolve(best);
-      }
-    }, function(_err){
-      // ignora erros pontuais do watch; o timer cuida do fallback
-    }, {enableHighAccuracy:true, maximumAge:0});
+      if (acc && acc <= targetAcc){ clearAll(); resolve(best); }
+    }, function(_){ /* ignora */ }, {enableHighAccuracy:true, maximumAge:0});
 
-    var timer = setTimeout(function(){
+    var tid = setTimeout(function(){
       clearAll();
       if (best) return resolve(best);
-      // último fallback: tenta um getCurrentPosition
-      navigator.geolocation.getCurrentPosition(function(pos){
-        resolve(pos);
-      }, function(e){ reject(e); }, {enableHighAccuracy:true, timeout:8000, maximumAge:0});
+      navigator.geolocation.getCurrentPosition(function(pos){ resolve(pos); }, function(e){ reject(e); }, {enableHighAccuracy:true, timeout:8000, maximumAge:0});
     }, maxWaitMs);
   });
 }
 
-/* ====== Captura de foto (agora com FIX fresco) ====== */
+/* CAPTURAR com fix fresco */
 els.capture.onclick = function(){
   if(!stream){ alert('Abra a câmera primeiro.'); return; }
-
   els.capture.disabled = true;
   els.capture.textContent = 'Ajustando GPS…';
   els.gpsHint.textContent = 'Buscando coordenadas precisas…';
 
-  getFreshFix(25, 8000) // alvo 25 m, até 8s
+  getFreshFix(25, 8000)
     .then(function(pos){
       fixLat = pos.coords.latitude;
       fixLng = pos.coords.longitude;
@@ -325,32 +314,24 @@ els.capture.onclick = function(){
       els.gpsHint.textContent = 'Fix obtido: LAT '+fixLat.toFixed(6)+'  LONG '+fixLng.toFixed(6)+'  (±'+fixAcc+' m)';
     })
     .catch(function(){
-      // sem fix: usa o que tiver “ao vivo” (pode ser null)
-      fixLat = currentLat;
-      fixLng = currentLng;
-      fixAcc = accuracyM;
+      fixLat = currentLat; fixLng = currentLng; fixAcc = accuracyM;
       els.gpsHint.textContent = fixLat && fixLng
         ? 'Usando leitura atual: LAT '+fixLat.toFixed(6)+'  LONG '+fixLng.toFixed(6)+'  (±'+(fixAcc||'?')+' m)'
         : 'Sem GPS — registrando sem coordenadas';
     })
     .finally(function(){
-      // desenha a foto com o FIX (ou sem GPS)
       var w = els.video.videoWidth || 1280;
       var h = els.video.videoHeight || 720;
       els.canvas.width = w; els.canvas.height = h;
       var ctx = els.canvas.getContext('2d');
       ctx.drawImage(els.video, 0, 0, w, h);
 
-      var now = new Date();
-      var dateStr = now.toLocaleString();
+      var now = new Date(), dateStr = now.toLocaleString();
       ctx.fillStyle='rgba(0,0,0,.35)'; ctx.fillRect(0, h-92, w, 92);
       ctx.fillStyle='#fff'; ctx.font='bold 22px Arial';
       ctx.fillText(currentCode+' - '+currentActivity, 16, h-60);
       ctx.font='16px Arial';
-
-      var locLine = (fixLat && fixLng)
-        ? ('LAT '+fixLat.toFixed(6)+'  LONG '+fixLng.toFixed(6)+'  (±'+(fixAcc||'?')+' m)')
-        : 'Sem GPS';
+      var locLine = (fixLat && fixLng) ? ('LAT '+fixLat.toFixed(6)+'  LONG '+fixLng.toFixed(6)+'  (±'+(fixAcc||'?')+' m)') : 'Sem GPS';
       ctx.fillText(dateStr+'  •  '+locLine, 16, h-28);
 
       if(stream){ try{ stream.getTracks().forEach(function(t){ t.stop(); }); }catch(e){} stream=null; }
@@ -372,7 +353,7 @@ els.closeCam.onclick = function(){
   window.scrollTo({top:0, behavior:'smooth'});
 };
 
-/* ===== Envio (mantém seu fluxo; use a fila se já estiver com queue.js) ===== */
+/* Envio (fila/offline se disponível) */
 els.save.onclick = function () {
   try{
     if(!currentActivity || !currentCode){ alert('Selecione uma atividade.'); return; }
@@ -380,6 +361,8 @@ els.save.onclick = function () {
     var usuario = getUsuario();
     var obs = (els.comment.value || '').trim();
     var uuid = makeUUID();
+    var chuvaVal = els.rainChk.checked ? 'SIM' : '';                          // NOVO
+    var gpsFlag = (window.__EVIDENTE_MOCK === true) ? 'FAKE GPS' : '';        // NOVO
 
     showSending(true);
     setStatus('Preparando registro…');
@@ -394,7 +377,8 @@ els.save.onclick = function () {
       cod_atividade: currentCode,
       atividade: currentActivity,
       obs: obs,
-      // usa EXATAMENTE o FIX congealdo na hora da foto:
+      chuva: chuvaVal,               // NOVO -> coluna J
+      gps_flag: gpsFlag,             // NOVO -> coluna K
       lat: (fixLat!=null?fixLat:''),
       long: (fixLng!=null?fixLng:''),
       accuracy_m: (fixAcc!=null?fixAcc:''),
@@ -403,7 +387,7 @@ els.save.onclick = function () {
       WEBAPP_URL: WEBAPP_URL
     };
 
-    // Se você usa a FILA OFFLINE:
+    // Se tiver fila offline (queue.js):
     if (window.EvidenteQueue && window.EvidenteQueue.queueOrSendNow) {
       window.EvidenteQueue.queueOrSendNow(item, {
         onSent: function(){
@@ -415,7 +399,7 @@ els.save.onclick = function () {
         },
         onQueued: function(){
           setStatus('📦 Sem internet: registro salvo. Será enviado automaticamente quando a conexão voltar.');
-          alert('Sem internet: registro salvo e será enviado assim que o aparelho reconectar.');
+          alert('Sem internet: registro salvo; enviaremos assim que reconectar.');
           resetAll();
           window.scrollTo({top:0, behavior:'smooth'});
           showSending(false);
@@ -440,7 +424,8 @@ els.save.onclick = function () {
         app_version: APP_VERSION, usuario: usuario,
         cod_atividade: currentCode, atividade: currentActivity,
         foto: up.foto_url || '', foto_id: up.foto_id || '',
-        lat: item.lat, long: item.long, obs: obs
+        lat: item.lat, long: item.long, obs: obs,
+        chuva: chuvaVal, gps_flag: gpsFlag         // NOVO
       }, function(grava){
         if(!grava || grava.status!=='OK'){ throwSend('Falha ao gravar a linha'); return; }
         setStatus('✅ Enviado com sucesso!'); alert('Registro enviado!');
@@ -484,6 +469,7 @@ function resetAll(){
   currentActivity=null; currentCode=null;
   currentLat=null; currentLng=null; accuracyM=null;
   fixLat=null; fixLng=null; fixAcc=null;
+  els.rainChk.checked = false;
   els.comment.value='';
   els.camCard.classList.add('hidden');
   els.previewCard.classList.add('hidden');
@@ -491,7 +477,7 @@ function resetAll(){
 }
 </script>
 
-<!-- Se estiver usando a fila offline, mantenha este import -->
+<!-- Fila offline (se estiver usando) -->
 <script src="/app-campo/queue.js"></script>
 </body>
 </html>
