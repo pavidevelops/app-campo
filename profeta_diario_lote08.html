@@ -303,7 +303,7 @@ function getFreshFix(targetAcc, maxWaitMs){
 els.capture.onclick = function(){
   if(!stream){ alert('Abra a câmera primeiro.'); return; }
   els.capture.disabled = true;
-  els.capture.textContent = 'Ajustando GPS…';
+  els.capture.textContent = 'Aguarde, capturando imagens...';
   els.gpsHint.textContent = 'Buscando coordenadas precisas…';
 
   getFreshFix(25, 8000)
