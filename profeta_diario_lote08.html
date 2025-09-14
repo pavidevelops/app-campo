@@ -28,7 +28,6 @@
     .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
     button{padding:12px;border:0;border-radius:10px;font-weight:700;cursor:pointer}
     .btn-ok{background:var(--success);color:#fff}
-    .btn-warn{background:var(--warn);color:#fff}
     .btn-secondary{background:#94A3B8;color:#fff}
     .btn-danger{background:var(--danger);color:#fff}
     #photoCanvas{max-width:100%;border:1px solid var(--border);border-radius:10px;display:block;margin:0 auto}
@@ -94,11 +93,11 @@
 </div>
 
 <script>
-/* ====== CONFIG ====== */
+/* ===== CONFIG ===== */
 var WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxp4jFtbtORDnpvyaHBNFkZXudJsdA6sQMm3rTEorMuAsh_5aSBl7YZMEghrZrAHJMC/exec';
 var APP_VERSION = '1.0';
 var LOTE = '08';
-/* ==================== */
+/* ================== */
 
 var atividades = [
   { cod:"421100", atividade:"CAIXA DE RETENÇÃO" },
@@ -154,7 +153,7 @@ var currentActivity=null;
 var currentCode=null;
 var currentLat=null, currentLng=null, accuracyM=null;
 
-/* init robusto (à prova de timing) */
+/* ========= Init (à prova de timing) ========= */
 function initPage() {
   try {
     renderList(atividades);
@@ -165,15 +164,12 @@ function initPage() {
       });
       renderList(filtered);
     });
-  } catch (e) {
-    console.error('Falha ao inicializar a página:', e);
-  }
+  } catch (e) { console.error('Falha ao inicializar a página:', e); }
 }
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initPage, { once: true });
-} else {
-  initPage();
-}
+} else { initPage(); }
+/* ============================================ */
 
 function renderList(arr){
   els.list.innerHTML='';
@@ -189,7 +185,20 @@ function renderList(arr){
   els.list.appendChild(frag);
 }
 
-async function openCamera(atividade){
+/* getUserMedia compat */
+function getUserMediaCompat(constraints){
+  var nav = navigator;
+  if (nav.mediaDevices && nav.mediaDevices.getUserMedia) {
+    return nav.mediaDevices.getUserMedia(constraints);
+  }
+  var gum = nav.getUserMedia || nav.webkitGetUserMedia || nav.mozGetUserMedia || nav.msGetUserMedia;
+  if (gum) {
+    return new Promise(function(res, rej){ gum.call(nav, constraints, res, rej); });
+  }
+  return Promise.reject(new Error('getUserMedia não suportado neste dispositivo'));
+}
+
+function openCamera(atividade){
   currentActivity = atividade.atividade;
   currentCode = atividade.cod;
   els.camTitle.textContent = atividade.cod + ' — ' + atividade.atividade;
@@ -197,23 +206,21 @@ async function openCamera(atividade){
   els.previewCard.classList.add('hidden');
   els.status.textContent='';
 
-  try{
-    stream = await navigator.mediaDevices.getUserMedia({
-      video:{facingMode:'environment', width:{ideal:1280}, height:{ideal:720}}
+  getUserMediaCompat({ video:{facingMode:'environment', width:{ideal:1280}, height:{ideal:720}} })
+    .then(function(s){
+      stream = s;
+      els.video.srcObject = s;
+    })
+    .catch(function(err){
+      alert('Não foi possível abrir a câmera: '+err.message);
     });
-    els.video.srcObject = stream;
-  }catch(err){
-    alert('Não foi possível abrir a câmera: '+err.message);
-    return;
-  }
 
   capturePosition();
 }
 
 function capturePosition(){
   if(!('geolocation' in navigator)){
-    els.gpsHint.textContent='GPS indisponível neste dispositivo.';
-    return;
+    els.gpsHint.textContent='GPS indisponível neste dispositivo.'; return;
   }
   els.gpsHint.textContent='Capturando posição…';
   navigator.geolocation.getCurrentPosition(
@@ -223,7 +230,7 @@ function capturePosition(){
       accuracyM = Math.round(pos.coords.accuracy);
       els.gpsHint.textContent = 'LAT ' + currentLat.toFixed(6) + '  LONG ' + currentLng.toFixed(6) + '  (±' + (accuracyM||'?') + ' m)';
     },
-    function(err){
+    function(){
       els.gpsHint.textContent = 'Sem acesso ao GPS (permita a localização para registrar LAT/LONG).';
     },
     {enableHighAccuracy:true, timeout:8000, maximumAge:0}
@@ -235,9 +242,7 @@ els.capture.onclick = function () {
 
   var w = els.video.videoWidth || 1280;
   var h = els.video.videoHeight || 720;
-
-  els.canvas.width = w;
-  els.canvas.height = h;
+  els.canvas.width = w; els.canvas.height = h;
   var ctx = els.canvas.getContext('2d');
 
   ctx.drawImage(els.video, 0, 0, w, h);
@@ -262,73 +267,54 @@ els.capture.onclick = function () {
   els.previewCard.scrollIntoView({behavior:'smooth'});
 };
 
-els.retry.onclick = function () {
-  openCamera({cod: currentCode, atividade: currentActivity});
-};
+els.retry.onclick = function(){ openCamera({cod: currentCode, atividade: currentActivity}); };
+els.cancel.onclick = function(){ resetAll(); };
+els.closeCam.onclick = function(){ if(stream){ stream.getTracks().forEach(function(t){ t.stop(); }); } stream=null; els.camCard.classList.add('hidden'); };
 
-els.cancel.onclick = function () {
-  resetAll();
-};
+/* ===== envio ===== */
+els.save.onclick = function () {
+  if(!currentActivity || !currentCode){ alert('Selecione uma atividade.'); return; }
 
-els.closeCam.onclick = function () {
-  if(stream){ stream.getTracks().forEach(function(t){ t.stop(); }); stream=null; }
-  els.camCard.classList.add('hidden');
-};
+  var usuario = getUsuario();
+  var obs = (els.comment.value || '').trim();
+  var uuid = makeUUID();
 
-els.save.onclick = async function () {
-  try{
-    if(!currentActivity || !currentCode){ alert('Selecione uma atividade.'); return; }
+  showSending(true);
+  setStatus('Processando…');
 
-    var usuario = getUsuario();
-    var obs = (els.comment.value || '').trim();
-    var uuid = makeUUID();
+  var dataURL = els.canvas.toDataURL('image/jpeg', 0.8);
 
-    showSending(true);
-    setStatus('Processando…');
+  var item = {
+    submission_uuid: uuid,
+    app_version: APP_VERSION,
+    usuario: usuario,
+    lote: LOTE,
+    cod_atividade: currentCode,
+    atividade: currentActivity,
+    obs: obs,
+    lat: (currentLat != null ? currentLat : ''),
+    long: (currentLng != null ? currentLng : ''),
+    accuracy_m: (accuracyM != null ? accuracyM : ''),
+    foto_base64: dataURL,
+    created_at: Date.now(),
+    WEBAPP_URL: WEBAPP_URL
+  };
 
-    // Gera a imagem (com marca d’água) em base64
-    var dataURL = els.canvas.toDataURL('image/jpeg', 0.8);
-
-    // item para fila/envio
-    var item = {
-      submission_uuid: uuid,
-      app_version: APP_VERSION,
-      usuario: usuario,
-      lote: LOTE,
-      cod_atividade: currentCode,
-      atividade: currentActivity,
-      obs: obs,
-      lat: (currentLat != null ? currentLat : ''),
-      long: (currentLng != null ? currentLng : ''),
-      accuracy_m: (accuracyM != null ? accuracyM : ''),
-      foto_base64: dataURL,
-      created_at: Date.now(),
-      WEBAPP_URL: WEBAPP_URL
-    };
-
-    // Usa fila se disponível; se não, fallback envia direto/guarda local
-    var handler = window._EVIDENTE_QUEUE_OR_SEND_NOW || queueOrSendNowCompat;
-    var res = await handler(item);
-
+  queueOrSendNowCompat(item).then(function(res){
     if(res && res.sent){
       setStatus('✅ Enviado!');
       alert('Registro enviado!');
-      resetAll();
-      window.scrollTo({top:0, behavior:'smooth'});
     } else {
       setStatus('📦 Sem internet: registro salvo. Será enviado automaticamente quando a rede voltar.');
       alert('Sem internet: pendência salva. Vamos enviar assim que a rede voltar.');
-      resetAll();
-      window.scrollTo({top:0, behavior:'smooth'});
     }
-
-  }catch(err){
+    resetAll();
+    window.scrollTo({top:0, behavior:'smooth'});
+  }).catch(function(err){
     console.error(err);
     setStatus('❌ '+err.message);
     alert('Erro: '+err.message);
-  } finally {
-    showSending(false);
-  }
+  }).finally(function(){ showSending(false); });
 };
 
 /* ===== helpers ===== */
@@ -342,43 +328,55 @@ function getUsuario(){
 }
 function makeUUID(){
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c){
-    var r=Math.random()*16|0, v=c==='x'?r:(r&0x3|0x8);
-    return v.toString(16);
+    var r=Math.random()*16|0, v=c==='x'?r:(r&0x3|0x8); return v.toString(16);
   });
-}
-async function postForm(url, data){
-  var body = new URLSearchParams();
-  Object.keys(data).forEach(function(k){ body.append(k, data[k]); });
-  var resp = await fetch(url, {
-    method:'POST',
-    headers:{'Content-Type':'application/x-www-form-urlencoded'},
-    body: body.toString()
-  });
-  if(!resp.ok){ throw new Error('Failed to fetch'); }
-  return resp.json();
-}
-function resetAll(){
-  if(stream){ stream.getTracks().forEach(function(t){ t.stop(); }); stream=null; }
-  currentActivity=null; currentCode=null;
-  currentLat=null; currentLng=null; accuracyM=null;
-  els.comment.value='';
-  els.camCard.classList.add('hidden');
-  els.previewCard.classList.add('hidden');
 }
 
-/* Fallback simples se queue.js (módulo) não carregar no WebView */
-async function queueOrSendNowCompat(item){
-  try{
+/* URL-encode form + fetch/XHR compat */
+function encodeForm(data){
+  var p=[], k;
+  for(k in data){ if(data.hasOwnProperty(k)){
+    p.push(encodeURIComponent(k)+'='+encodeURIComponent(data[k]));
+  }}
+  return p.join('&');
+}
+function postForm(url, data){
+  var body = encodeForm(data);
+  if (window.fetch) {
+    return fetch(url,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:body})
+      .then(function(r){ if(!r.ok) throw new Error('Failed to fetch'); return r.json(); });
+  }
+  return new Promise(function(resolve,reject){
+    var xhr=new XMLHttpRequest();
+    xhr.open('POST', url, true);
+    xhr.setRequestHeader('Content-Type','application/x-www-form-urlencoded');
+    xhr.onreadystatechange=function(){
+      if(xhr.readyState===4){
+        if(xhr.status>=200 && xhr.status<300){
+          try{ resolve(JSON.parse(xhr.responseText)); }catch(e){ reject(e); }
+        } else { reject(new Error('HTTP '+xhr.status)); }
+      }
+    };
+    xhr.send(body);
+  });
+}
+
+function resetAll(){
+  if(stream){ stream.getTracks().forEach(function(t){ t.stop(); }); stream=null; }
+  currentActivity=null; currentCode=null; currentLat=null; currentLng=null; accuracyM=null;
+  els.comment.value=''; els.camCard.classList.add('hidden'); els.previewCard.classList.add('hidden');
+}
+
+/* Fila offline/online compatível com WebView */
+function queueOrSendNowCompat(item){
+  return new Promise(function(resolve){
     if (!navigator.onLine) {
-      // salva pendência local (mínimo)
-      var arr = [];
-      try { arr = JSON.parse(localStorage.getItem('evidente_queue') || '[]'); } catch(e){}
-      arr.push(item);
-      localStorage.setItem('evidente_queue', JSON.stringify(arr));
-      return { sent:false, queued:true };
+      saveQueueItem(item);
+      resolve({sent:false, queued:true});
+      return;
     }
-    // online: envia direto (2 passos)
-    var up = await postForm(item.WEBAPP_URL, {
+    // online: faz upload e grava linha
+    postForm(item.WEBAPP_URL, {
       action:'upload_foto',
       usuario:item.usuario,
       lote:item.lote,
@@ -386,44 +384,58 @@ async function queueOrSendNowCompat(item){
       atividade:item.atividade,
       app_version:item.app_version,
       submission_uuid:item.submission_uuid,
-      lat: item.lat,
-      long: item.long,
-      accuracy_m: item.accuracy_m,
+      lat:item.lat, long:item.long, accuracy_m:item.accuracy_m,
       foto_base64:item.foto_base64
+    }).then(function(up){
+      if(!up || up.status!=='OK') throw new Error(up && up.mensagem ? up.mensagem : 'Falha no upload');
+      return postForm(item.WEBAPP_URL, {
+        action:'gravar_linha_lt08',
+        app_version:item.app_version,
+        usuario:item.usuario,
+        cod_atividade:item.cod_atividade,
+        atividade:item.atividade,
+        foto: up.foto_url || '',
+        foto_id: up.foto_id || '',
+        lat:item.lat, long:item.long, obs:item.obs
+      });
+    }).then(function(grava){
+      if(!grava || grava.status!=='OK') throw new Error(grava && grava.mensagem ? grava.mensagem : 'Falha ao gravar a linha');
+      resolve({sent:true});
+    }).catch(function(e){
+      // falhou online? guarda pendência
+      saveQueueItem(item);
+      resolve({sent:false, error:String(e)});
     });
-    if(!up || up.status!=='OK') throw new Error(up && up.mensagem ? up.mensagem : 'Falha no upload da foto');
+  });
+}
 
-    var grava = await postForm(item.WEBAPP_URL, {
-      action:'gravar_linha_lt08',
-      app_version:item.app_version,
-      usuario:item.usuario,
-      cod_atividade:item.cod_atividade,
-      atividade:item.atividade,
-      foto: up.foto_url || '',
-      foto_id: up.foto_id || '',
-      lat: item.lat,
-      long: item.long,
-      obs: item.obs
-    });
-    if(!grava || grava.status!=='OK') throw new Error(grava && grava.mensagem ? grava.mensagem : 'Falha ao gravar a linha');
-
-    return { sent:true };
-  } catch(e){
-    // se falhar no meio, guarda como pendência
-    var arr = [];
-    try { arr = JSON.parse(localStorage.getItem('evidente_queue') || '[]'); } catch(_){}
+function saveQueueItem(item){
+  try{
+    var arr = []; try{ arr = JSON.parse(localStorage.getItem('evidente_queue') || '[]'); }catch(e){}
     arr.push(item);
     localStorage.setItem('evidente_queue', JSON.stringify(arr));
-    return { sent:false, error:String(e) };
-  }
+  }catch(e){}
 }
+
+/* tenta sincronizar pendências ao abrir com rede */
+(function syncQueueIfOnline(){
+  try{
+    if (!navigator.onLine) return;
+    var arr = JSON.parse(localStorage.getItem('evidente_queue') || '[]');
+    if (!arr.length) return;
+    var next = arr.shift();
+    localStorage.setItem('evidente_queue', JSON.stringify(arr));
+    queueOrSendNowCompat(next).finally(syncQueueIfOnline);
+  }catch(e){}
+})();
 </script>
 
-<!-- Importa a fila offline (módulo). Se o WebView não suportar módulos, usamos o fallback acima. -->
-<script type="module" src="/app-campo/queue.js"></script>
-<script type="module">
-  import { queueOrSendNow } from '/app-campo/queue.js';
-  window._EVIDENTE_QUEUE_OR_SEND_NOW = queueOrSendNow;
+<!-- (Opcional) Registrar o SW se abrirem esta página direto -->
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/app-campo/service-worker.js')
+    .catch(function(){});
+}
 </script>
 </body>
 </html>
