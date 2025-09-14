@@ -13,7 +13,7 @@
       margin:0;
       font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;
       background:var(--bg);color:var(--text);
-      padding: 18px 0 10px;             /* ↓ mais espaço no topo */
+      padding:18px 0 10px; /* respiro no topo */
     }
     .container{max-width:900px;margin:0 auto;padding:0 16px 24px}
     header{
@@ -23,14 +23,14 @@
     }
     h1{margin:0 0 6px;font-size:20px}
     .subtitle{opacity:.95;font-size:14px;line-height:1.35}
-    .search-container{position:sticky;top:0;z-index:5;background:var(--bg);padding:8px 0 12px}
+    .search-container{padding:8px 0 12px}
     #search{
       width:100%;padding:12px 14px;border:1px solid var(--border);border-radius:999px;
       background:#fff;font-size:16px;outline:none
     }
     #search:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(90,141,238,.2)}
     .buttons-container{
-      display:grid;grid-template-columns:1fr;gap:8px;max-height:52vh;overflow:auto;margin-top:8px
+      display:grid;grid-template-columns:1fr;gap:8px;margin-top:8px; /* sem max-height/overflow */
     }
     .activity-btn{
       background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px 14px;
@@ -63,14 +63,6 @@
     }
     .sending img{ width:min(240px,50vw); height:auto; display:block; }
 
-    /* logger (debug) */
-    #dbg{
-      position:fixed;left:8px;right:8px;bottom:8px;
-      background:#0b1220;color:#c7d2fe;border:1px solid #334155;border-radius:10px;
-      padding:6px 10px;font:12px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;z-index:9999;
-      opacity:.85;max-height:28vh;overflow:auto;
-    }
-    #dbg b{color:#93c5fd}
     @media (max-width:520px){.grid2,.grid3{grid-template-columns:1fr}}
   </style>
 </head>
@@ -122,23 +114,12 @@
   <img src="send_data.gif" alt="Enviando…"/>
 </div>
 
-<!-- logger em tela (p/ WebView) -->
-<div id="dbg">LOG — iniciando…</div>
-
 <script>
 /* ===== CONFIG ===== */
 var WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxp4jFtbtORDnpvyaHBNFkZXudJsdA6sQMm3rTEorMuAsh_5aSBl7YZMEghrZrAHJMC/exec';
 var APP_VERSION = '1.0';
 var LOTE = '08';
 /* ================== */
-
-/* logger simples */
-function dbg(msg){ try{
-  var el=document.getElementById('dbg');
-  el.innerHTML += '<br><b>·</b> ' + String(msg).replace(/[<>&]/g, s=>({ '<':'&lt;','>':'&gt;','&':'&amp;' }[s]));
-  el.scrollTop = el.scrollHeight;
-} catch(_){} }
-window.onerror = function(m, src, ln, col){ dbg('ERRO: '+m+' @'+ln+':'+col); };
 
 /* Lista de atividades */
 var atividades = [
@@ -171,6 +152,7 @@ var atividades = [
   { cod:"795011", atividade:"Fornecimento e aplicação de Grout" }
 ];
 
+/* Refs */
 var els = {
   search: document.getElementById('search'),
   list: document.getElementById('buttons-container'),
@@ -193,27 +175,36 @@ var els = {
 var stream=null, currentActivity=null, currentCode=null;
 var currentLat=null, currentLng=null, accuracyM=null;
 
-/* ===== Init robusto ===== */
+/* ===== Init robusto (sem {once:true}) ===== */
 function initPage() {
-  dbg('JS OK — initPage');
   try {
     renderList(atividades);
     els.search.addEventListener('input', function () {
       var t = els.search.value.toLowerCase();
-      var filtered = atividades.filter(function(a){
-        return a.cod.toLowerCase().indexOf(t) !== -1 || a.atividade.toLowerCase().indexOf(t) !== -1;
-      });
-      renderList(filtered);
+      var out = [];
+      for (var i=0;i<atividades.length;i++){
+        var a = atividades[i];
+        if (a.cod.toLowerCase().indexOf(t)!==-1 || a.atividade.toLowerCase().indexOf(t)!==-1) out.push(a);
+      }
+      renderList(out);
     });
 
+    // Se por algum motivo não renderizou, tenta de novo
     setTimeout(function(){
-      if (!els.list.children.length) { dbg('retry renderList'); renderList(atividades); }
-    }, 350);
-  } catch (e) { dbg('init erro: '+e); }
+      if (!els.list.children.length) renderList(atividades);
+    }, 300);
+  } catch (e) { /* silencioso */ }
 }
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initPage, { once: true });
-} else { initPage(); }
+  document.addEventListener('DOMContentLoaded', function handler(){
+    document.removeEventListener('DOMContentLoaded', handler);
+    initPage();
+  });
+} else {
+  initPage();
+}
+// fallback em load (alguns WebViews disparam tarde)
+window.addEventListener('load', function(){ if(!els.list.children.length) initPage(); });
 
 /* ===== Render ===== */
 function renderList(arr){
@@ -225,12 +216,16 @@ function renderList(arr){
     }
   }
   els.list.innerHTML = html;
+
+  // delegação (menos bug em WebView)
   els.list.onclick = function(ev){
     var b = ev.target;
     while (b && !b.classList.contains('activity-btn')) b = b.parentNode;
     if (!b) return;
     var cod = b.getAttribute('data-cod');
-    for (var j=0;j<atividades.length;j++){ if (atividades[j].cod === cod) { openCamera(atividades[j]); break; } }
+    for (var j=0;j<atividades.length;j++){
+      if (atividades[j].cod === cod) { openCamera(atividades[j]); break; }
+    }
   };
 }
 
@@ -246,27 +241,27 @@ function getUserMediaCompat(constraints){
 function openCamera(atividade){
   currentActivity = atividade.atividade; currentCode = atividade.cod;
   els.camTitle.textContent = atividade.cod + ' — ' + atividade.atividade;
-  els.camCard.classList.remove('hidden'); els.previewCard.classList.add('hidden'); els.status.textContent='';
-  dbg('abrindo câmera…');
+  els.camCard.classList.remove('hidden');
+  els.previewCard.classList.add('hidden');
+  els.status.textContent='';
 
   getUserMediaCompat({ video:{facingMode:'environment', width:{ideal:1280}, height:{ideal:720}} })
-    .then(function(s){ stream = s; els.video.srcObject = s; dbg('câmera ok'); })
-    .catch(function(err){ alert('Não foi possível abrir a câmera: '+err.message); dbg('ERRO câmera: '+err.message); });
+    .then(function(s){ stream = s; els.video.srcObject = s; })
+    .catch(function(err){ alert('Não foi possível abrir a câmera: '+err.message); });
 
   capturePosition();
 }
 
 /* ===== GPS ===== */
 function capturePosition(){
-  if(!('geolocation' in navigator)){ els.gpsHint.textContent='GPS indisponível neste dispositivo.'; dbg('GPS indisponível'); return; }
+  if(!('geolocation' in navigator)){ els.gpsHint.textContent='GPS indisponível neste dispositivo.'; return; }
   els.gpsHint.textContent='Capturando posição…';
   navigator.geolocation.getCurrentPosition(
     function(pos){
       currentLat = pos.coords.latitude; currentLng = pos.coords.longitude; accuracyM = Math.round(pos.coords.accuracy);
       els.gpsHint.textContent = 'LAT ' + currentLat.toFixed(6) + '  LONG ' + currentLng.toFixed(6) + '  (±' + (accuracyM||'?') + ' m)';
-      dbg('GPS ok');
     },
-    function(err){ els.gpsHint.textContent = 'Sem acesso ao GPS.'; dbg('ERRO GPS: '+(err&&err.message)); },
+    function(){ els.gpsHint.textContent = 'Sem acesso ao GPS (permita a localização).'; },
     {enableHighAccuracy:true, timeout:8000, maximumAge:0}
   );
 }
@@ -276,6 +271,7 @@ els.capture.onclick = function () {
   if(!stream){ alert('Abra a câmera primeiro.'); return; }
   var w = els.video.videoWidth || 1280, h = els.video.videoHeight || 720;
   els.canvas.width = w; els.canvas.height = h; var ctx = els.canvas.getContext('2d');
+
   ctx.drawImage(els.video, 0, 0, w, h);
 
   var now = new Date(), dateStr = now.toLocaleString();
@@ -286,20 +282,26 @@ els.capture.onclick = function () {
   ctx.fillText(dateStr + '  •  ' + locLine, 16, h-28);
 
   if(stream){ try{ stream.getTracks().forEach(function(t){ t.stop(); }); }catch(_){} stream=null; }
-  els.camCard.classList.add('hidden'); els.previewCard.classList.remove('hidden'); els.previewCard.scrollIntoView({behavior:'smooth'});
+
+  els.camCard.classList.add('hidden');
+  els.previewCard.classList.remove('hidden');
+  els.previewCard.scrollIntoView({behavior:'smooth'});
 };
 
 els.retry.onclick = function(){ openCamera({cod: currentCode, atividade: currentActivity}); };
 els.cancel.onclick = function(){ resetAll(); };
 els.closeCam.onclick = function(){ if(stream){ try{ stream.getTracks().forEach(function(t){ t.stop(); }); }catch(_){} stream=null; els.camCard.classList.add('hidden'); };
 
-/* ===== Envio / Fila mínima ===== */
+/* ===== Envio / Fila ===== */
 els.save.onclick = function () {
   if(!currentActivity || !currentCode){ alert('Selecione uma atividade.'); return; }
   var usuario = getUsuario(), obs = (els.comment.value || '').trim(), uuid = makeUUID();
-  showSending(true); setStatus('Processando…'); dbg('enviando…');
+
+  showSending(true);
+  setStatus('Processando…');
 
   var dataURL = els.canvas.toDataURL('image/jpeg', 0.8);
+
   var item = {
     submission_uuid: uuid, app_version: APP_VERSION, usuario: usuario, lote: LOTE,
     cod_atividade: currentCode, atividade: currentActivity, obs: obs,
@@ -311,8 +313,9 @@ els.save.onclick = function () {
     if(res && res.sent){ setStatus('✅ Enviado!'); alert('Registro enviado!'); }
     else { setStatus('📦 Sem internet: registro salvo.'); alert('Sem internet: pendência salva.'); }
     resetAll(); window.scrollTo({top:0, behavior:'smooth'});
-  }).catch(function(err){ setStatus('❌ '+err.message); alert('Erro: '+err.message); dbg('ERRO envio: '+err.message); })
-    .finally(function(){ showSending(false); });
+  }).catch(function(err){
+    setStatus('❌ '+err.message); alert('Erro: '+err.message);
+  }).finally(function(){ showSending(false); });
 };
 
 /* ===== Helpers ===== */
@@ -336,7 +339,7 @@ function resetAll(){
   els.comment.value=''; els.camCard.classList.add('hidden'); els.previewCard.classList.add('hidden');
 }
 
-/* fila simples */
+/* ===== Fila simples ===== */
 function queueOrSendNowCompat(item){
   return new Promise(function(resolve){
     if (!navigator.onLine) { saveQueueItem(item); resolve({sent:false, queued:true}); return; }
