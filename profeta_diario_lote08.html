@@ -11,19 +11,19 @@
     *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
     body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;background:var(--bg);color:var(--text)}
     .container{max-width:900px;margin:0 auto;padding:16px}
-    header{background:linear-gradient(135deg,var(--primary),var(--primary-600));color:#fff;border-radius:12px;padding:20px 16px;margin-bottom:16px;box-shadow:0 6px 18px rgba(0,0,0,0.08)}
-    h1{margin:0 0 6px;font-size:20px}
+    header{background:linear-gradient(135deg,var(--primary),var(--primary-600));color:#fff;border-radius:12px;padding:16px 14px;margin-bottom:16px;box-shadow:0 6px 18px rgba(0,0,0,0.08)}
+    h1{margin:0 0 4px;font-size:20px}
     .subtitle{opacity:.9;font-size:14px}
-    .search-container{padding:10px 0}
+    .search-container{position:sticky;top:0;z-index:5;background:var(--bg);padding:10px 0}
     #search{width:100%;padding:12px 14px;border:1px solid var(--border);border-radius:999px;background:#fff;font-size:16px;outline:none}
     #search:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(90,141,238,.2)}
-    .buttons-container{display:grid;grid-template-columns:1fr;gap:8px;margin-top:8px}
+    .buttons-container{display:grid;grid-template-columns:1fr;gap:8px;max-height:44vh;overflow:auto;margin-top:8px}
     .activity-btn{background:#fff;border:1px solid var(--border);border-radius:10px;padding:12px 14px;text-align:left;cursor:pointer;transition:.15s;box-shadow:0 2px 6px rgba(0,0,0,.04)}
     .activity-btn strong{color:var(--primary)}
     .activity-btn:active{transform:scale(.98);background:#F4F8FF}
     .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-top:14px;box-shadow:0 6px 18px rgba(0,0,0,.06)}
     .section-title{margin:0 0 10px;font-weight:700}
-    #camera{width:100%;background:#0b1220;border-radius:10px}
+    #camera{width:100%;aspect-ratio:4/3;background:#0b1220;border-radius:10px}
     .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
     .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
     button{padding:12px;border:0;border-radius:10px;font-weight:700;cursor:pointer}
@@ -34,8 +34,16 @@
     textarea{width:100%;min-height:110px;border:1px solid var(--border);border-radius:10px;padding:12px;font-size:15px}
     .muted{color:var(--muted);font-size:13px}
     .hidden{display:none!important}
-    .sending{position:fixed; inset:0; background:rgba(255,255,255,.85); display:flex; align-items:center; justify-content:center; z-index:9999;}
+
+    /* overlay de envio */
+    .sending{
+      position:fixed; inset:0; background:rgba(255,255,255,.85);
+      display:flex; align-items:center; justify-content:center;
+      z-index:9999;
+    }
     .sending img{ width:min(240px,50vw); height:auto; display:block; }
+    /* dica de permissão */
+    .perm-tip{font-size:12px;color:#0F172A;background:#fff;border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-top:8px}
     @media (max-width:520px){.grid2,.grid3{grid-template-columns:1fr}}
   </style>
 </head>
@@ -46,18 +54,18 @@
     <div class="subtitle">Selecione a atividade, capture a foto e envie para a planilha</div>
   </header>
 
-  <div class="search-container">
+  <div id="searchWrap" class="search-container">
     <input id="search" placeholder="Buscar atividade..." autocomplete="off"/>
+    <div class="perm-tip">Ao iniciar, o Android pedirá <b>Câmera</b> e <b>Localização</b>. Toque em <b>Permitir</b>.</div>
   </div>
 
-  <div id="buttons-container" class="buttons-container">
-    <button class="activity-btn" disabled>Carregando atividades…</button>
-  </div>
+  <div id="listWrap" class="buttons-container"></div>
 
   <!-- Câmera -->
   <section id="camera-card" class="card hidden">
     <h2 class="section-title" id="camera-title">Câmera</h2>
-    <video id="camera" autoplay playsinline></video>
+    <!-- muted ajuda o autoplay em alguns WebViews -->
+    <video id="camera" autoplay playsinline muted></video>
     <div class="grid2" style="margin-top:10px">
       <button id="capture" class="btn-ok">Capturar Foto</button>
       <button id="close-camera" class="btn-danger">Fechar Câmera</button>
@@ -88,14 +96,13 @@
 </div>
 
 <script>
-/* ===== CONFIG ===== */
-var WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxp4jFtbtORDnpvyaHBNFkZXudJsdA6sQMm3rTEorMuAsh_5aSBl7YZMEghrZrAHJMC/exec';
-var APP_VERSION = '1.0';
-var LOTE = '08';
-/* ================== */
+/* ====== CONFIG ====== */
+const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxp4jFtbtORDnpvyaHBNFkZXudJsdA6sQMm3rTEorMuAsh_5aSBl7YZMEghrZrAHJMC/exec';
+const APP_VERSION = '1.0';
+const LOTE = '08';
+/* ==================== */
 
-/* Atividades (mesmas) */
-var atividades = [
+const atividades = [
   { cod:"421100", atividade:"CAIXA DE RETENÇÃO" },
   { cod:"804300", atividade:"CAPINA MANUAL" },
   { cod:"600420", atividade:"DESOBSTRUÇÃO DE SARJETA" },
@@ -125,10 +132,11 @@ var atividades = [
   { cod:"795011", atividade:"Fornecimento e aplicação de Grout" }
 ];
 
-/* Refs */
-var els = {
+const els = {
+  searchWrap: document.getElementById('searchWrap'),
+  listWrap: document.getElementById('listWrap'),
   search: document.getElementById('search'),
-  list: document.getElementById('buttons-container'),
+  list: document.getElementById('listWrap'),
   camCard: document.getElementById('camera-card'),
   camTitle: document.getElementById('camera-title'),
   video: document.getElementById('camera'),
@@ -145,90 +153,83 @@ var els = {
   sendingOverlay: document.getElementById('sendingOverlay')
 };
 
-var stream=null, currentActivity=null, currentCode=null;
-var currentLat=null, currentLng=null, accuracyM=null;
+let stream=null;
+let currentActivity=null;
+let currentCode=null;
+let currentLat=null, currentLng=null, accuracyM=null;
 
-/* Init (bem simples/compatível) */
 function init(){
   renderList(atividades);
-
-  function onSearch(){
-    var t = els.search.value.toLowerCase();
-    var out = [];
-    for (var i=0;i<atividades.length;i++){
-      var a = atividades[i];
-      if (a.cod.toLowerCase().indexOf(t)!==-1 || a.atividade.toLowerCase().indexOf(t)!==-1){
-        out.push(a);
-      }
-    }
-    renderList(out);
-  }
-  els.search.addEventListener('input', onSearch);
-  els.search.addEventListener('keyup', onSearch);
+  els.search.addEventListener('input', () => {
+    const t = els.search.value.toLowerCase();
+    const filtered = atividades.filter(a =>
+      a.cod.toLowerCase().indexOf(t) !== -1 || a.atividade.toLowerCase().indexOf(t) !== -1
+    );
+    renderList(filtered);
+  });
 }
-if (document.readyState === 'loading'){
+if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', init);
 } else {
   init();
 }
 
-/* Lista */
 function renderList(arr){
-  els.list.innerHTML = '';
-  if(!arr.length){
-    els.list.innerHTML = '<div class="muted">Nada encontrado.</div>';
-    return;
-  }
-  for (var i=0;i<arr.length;i++){
-    var a = arr[i];
-    var b = document.createElement('button');
-    b.className = 'activity-btn';
-    b.setAttribute('data-cod', a.cod);
-    b.innerHTML = '<strong>'+a.cod+'</strong> '+a.atividade;
-    b.onclick = (function(item){
-      return function(){ openCamera(item); };
-    })(a);
-    els.list.appendChild(b);
-  }
+  els.list.innerHTML='';
+  if(!arr.length){ els.list.innerHTML='<div class="muted">Nada encontrado.</div>'; return; }
+  const frag = document.createDocumentFragment();
+  arr.forEach(a=>{
+    const b=document.createElement('button');
+    b.className='activity-btn';
+    b.innerHTML='<strong>'+a.cod+'</strong> '+a.atividade;
+    b.onclick=()=> openCamera(a);
+    frag.appendChild(b);
+  });
+  els.list.appendChild(frag);
 }
 
-/* getUserMedia compat */
+/* Compat getUserMedia */
 function getUserMediaCompat(constraints){
-  var nav = navigator;
+  const nav = navigator;
   if (nav.mediaDevices && nav.mediaDevices.getUserMedia) return nav.mediaDevices.getUserMedia(constraints);
-  var gum = nav.getUserMedia || nav.webkitGetUserMedia || nav.mozGetUserMedia || nav.msGetUserMedia;
-  if (gum) return new Promise(function(res, rej){ gum.call(nav, constraints, res, rej); });
+  const gum = nav.getUserMedia || nav.webkitGetUserMedia || nav.mozGetUserMedia || nav.msGetUserMedia;
+  if (gum) return new Promise((res, rej)=> gum.call(nav, constraints, res, rej));
   return Promise.reject(new Error('getUserMedia não suportado neste dispositivo'));
 }
 
-/* Abrir câmera */
-function openCamera(atividade){
+async function openCamera(atividade){
   currentActivity = atividade.atividade;
   currentCode = atividade.cod;
-  els.camTitle.textContent = atividade.cod + ' — ' + atividade.atividade;
+  els.camTitle.textContent = atividade.cod+' — '+atividade.atividade;
+
+  // Oculta busca/lista para a câmera subir
+  els.searchWrap.classList.add('hidden');
+  els.listWrap.classList.add('hidden');
+
   els.camCard.classList.remove('hidden');
   els.previewCard.classList.add('hidden');
-  els.status.textContent = '';
+  els.status.textContent='';
 
-  getUserMediaCompat({ video:{facingMode:'environment', width:{ideal:1280}, height:{ideal:720}} })
-    .then(function(s){
-      stream = s;
-      els.video.srcObject = s;
-      // Ajuste opcional de altura (4:3) quando metadata disponível
-      setTimeout(function(){
-        if (!els.video.videoWidth || !els.video.videoHeight){
-          els.video.style.height = (els.video.clientWidth * 0.75) + 'px';
-        }
-      }, 200);
-    })
-    .catch(function(err){
-      alert('Não foi possível abrir a câmera: ' + err.message);
-    });
+  // Fundamental para autoplay em alguns WebViews
+  try { els.video.muted = true; } catch(_) {}
+
+  try{
+    stream = await getUserMediaCompat({ video:{facingMode:'environment', width:{ideal:1280}, height:{ideal:720}} });
+    els.video.srcObject = stream;
+    // garante foco no topo da câmera
+    els.camCard.scrollIntoView({behavior:'smooth', block:'start'});
+  }catch(err){
+    alert('Não foi possível abrir a câmera: '+err.message);
+    // volta a lista se falhar
+    els.camCard.classList.add('hidden');
+    els.searchWrap.classList.remove('hidden');
+    els.listWrap.classList.remove('hidden');
+    return;
+  }
 
   capturePosition();
 }
 
-/* GPS */
 function capturePosition(){
   if(!('geolocation' in navigator)){
     els.gpsHint.textContent='GPS indisponível neste dispositivo.';
@@ -236,196 +237,140 @@ function capturePosition(){
   }
   els.gpsHint.textContent='Capturando posição…';
   navigator.geolocation.getCurrentPosition(
-    function(pos){
+    pos=>{
       currentLat = pos.coords.latitude;
       currentLng = pos.coords.longitude;
       accuracyM = Math.round(pos.coords.accuracy);
-      els.gpsHint.textContent = 'LAT ' + currentLat.toFixed(6) + '  LONG ' + currentLng.toFixed(6) + '  (±' + (accuracyM||'?') + ' m)';
+      els.gpsHint.textContent = 'LAT '+currentLat.toFixed(6)+'  LONG '+currentLng.toFixed(6)+'  (±'+accuracyM+' m)';
     },
-    function(){
-      els.gpsHint.textContent = 'Sem acesso ao GPS (permita a localização).';
+    ()=>{
+      els.gpsHint.textContent = 'Sem acesso ao GPS (permita a localização para registrar LAT/LONG).';
     },
     {enableHighAccuracy:true, timeout:8000, maximumAge:0}
   );
 }
 
-/* Captura frame */
-els.capture.onclick = function(){
+els.capture.onclick = () => {
   if(!stream){ alert('Abra a câmera primeiro.'); return; }
 
-  var w = els.video.videoWidth || 1280;
-  var h = els.video.videoHeight || 720;
+  const w = els.video.videoWidth || 1280;
+  const h = els.video.videoHeight || 720;
 
   els.canvas.width = w;
   els.canvas.height = h;
-  var ctx = els.canvas.getContext('2d');
+  const ctx = els.canvas.getContext('2d');
+
   ctx.drawImage(els.video, 0, 0, w, h);
 
-  var now = new Date();
-  var dateStr = now.toLocaleString();
+  const now = new Date();
+  const dateStr = now.toLocaleString();
   ctx.fillStyle='rgba(0,0,0,.35)';
   ctx.fillRect(0, h-92, w, 92);
   ctx.fillStyle='#fff';
   ctx.font='bold 22px Arial';
-  ctx.fillText(currentCode + ' - ' + currentActivity, 16, h-60);
+  ctx.fillText(currentCode+' - '+currentActivity, 16, h-60);
   ctx.font='16px Arial';
-  var locLine = (currentLat && currentLng)
-      ? ('LAT ' + currentLat.toFixed(6) + '  LONG ' + currentLng.toFixed(6) + '  (±' + (accuracyM||'?') + ' m)')
+  const locLine = (currentLat && currentLng)
+      ? 'LAT '+currentLat.toFixed(6)+'  LONG '+currentLng.toFixed(6)+'  (±'+(accuracyM||'?')+' m)'
       : 'Sem GPS';
-  ctx.fillText(dateStr + '  •  ' + locLine, 16, h-28);
+  ctx.fillText(dateStr+'  •  '+locLine, 16, h-28);
 
-  if(stream){
-    try{ stream.getTracks().forEach(function(t){ t.stop(); }); }catch(e){}
-    stream=null;
-  }
+  if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
+
   els.camCard.classList.add('hidden');
   els.previewCard.classList.remove('hidden');
   els.previewCard.scrollIntoView({behavior:'smooth'});
 };
 
-els.retry.onclick = function(){ openCamera({cod: currentCode, atividade: currentActivity}); };
-els.cancel.onclick = function(){ resetAll(); };
-els.closeCam.onclick = function(){
-  if(stream){ try{ stream.getTracks().forEach(function(t){ t.stop(); }); }catch(e){} stream=null; }
+els.retry.onclick = () => { openCamera({cod: currentCode, atividade: currentActivity}); };
+
+els.cancel.onclick = () => { resetAll(); };
+
+els.closeCam.onclick = () => {
+  if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
   els.camCard.classList.add('hidden');
+  // volta a lista para o topo
+  els.searchWrap.classList.remove('hidden');
+  els.listWrap.classList.remove('hidden');
+  window.scrollTo({top:0, behavior:'smooth'});
 };
 
-/* Envio + fila offline (localStorage) */
-els.save.onclick = function(){
-  if(!currentActivity || !currentCode){ alert('Selecione uma atividade.'); return; }
+els.save.onclick = async () => {
+  try{
+    if(!currentActivity || !currentCode){ alert('Selecione uma atividade.'); return; }
 
-  var usuario = getUsuario();
-  var obs = (els.comment.value || '').trim();
-  var uuid = makeUUID();
+    const usuario = getUsuario();
+    const obs = (els.comment.value || '').trim();
+    const uuid = makeUUID();
 
-  showSending(true);
-  setStatus('Processando…');
+    showSending(true);
 
-  var dataURL = els.canvas.toDataURL('image/jpeg', 0.8);
+    setStatus('Enviando foto…');
+    const dataURL = els.canvas.toDataURL('image/jpeg', 0.8);
+    const up = await postForm(WEBAPP_URL, {
+      action:'upload_foto',
+      usuario,
+      lote: LOTE,
+      cod_atividade: currentCode,
+      atividade: currentActivity,
+      app_version: APP_VERSION,
+      submission_uuid: uuid,
+      lat: (currentLat!=null ? currentLat : ''),
+      long: (currentLng!=null ? currentLng : ''),
+      accuracy_m: (accuracyM!=null ? accuracyM : ''),
+      foto_base64: dataURL
+    });
+    if(!up || up.status!=='OK'){ throw new Error(up && up.mensagem ? up.mensagem : 'Falha no upload da foto'); }
 
-  var item = {
-    submission_uuid: uuid,
-    app_version: APP_VERSION,
-    usuario: usuario,
-    lote: LOTE,
-    cod_atividade: currentCode,
-    atividade: currentActivity,
-    obs: obs,
-    lat: (currentLat!=null?currentLat:''),
-    long: (currentLng!=null?currentLng:''),
-    accuracy_m: (accuracyM!=null?accuracyM:''),
-    foto_base64: dataURL,
-    created_at: Date.now(),
-    WEBAPP_URL: WEBAPP_URL
-  };
+    setStatus('Enviando dados…');
+    const grava = await postForm(WEBAPP_URL, {
+      action:'gravar_linha_lt08',
+      data_hora: new Date().toISOString(),
+      app_version: APP_VERSION,
+      usuario,
+      cod_atividade: currentCode,
+      atividade: currentActivity,
+      foto: up.foto_url || '',
+      foto_id: up.foto_id || '',
+      lat: (currentLat!=null ? currentLat : ''),
+      long: (currentLng!=null ? currentLng : ''),
+      obs
+    });
+    if(!grava || grava.status!=='OK'){ throw new Error(grava && grava.mensagem ? grava.mensagem : 'Falha ao gravar a linha'); }
 
-  queueOrSendNow(item, function(res){
-    if(res && res.sent){
-      setStatus('✅ Enviado!');
-      alert('Registro enviado!');
-    } else {
-      setStatus('📦 Sem internet: registro salvo. Será enviado depois.');
-      alert('Sem internet: pendência salva. Vamos enviar quando a rede voltar.');
-    }
+    setStatus('✅ Enviado com sucesso!');
+    alert('Registro enviado!');
     resetAll();
     window.scrollTo({top:0, behavior:'smooth'});
+  }catch(err){
+    console.error(err);
+    setStatus('❌ '+err.message);
+    alert('Erro: '+err.message);
+  } finally {
     showSending(false);
-  }, function(err){
-    setStatus('❌ ' + err);
-    alert('Erro: ' + err);
-    showSending(false);
-  });
+  }
 };
 
-/* Helpers */
+/* helpers */
 function setStatus(t){ els.status.textContent=t; }
 function showSending(on){ els.sendingOverlay.classList.toggle('hidden', !on); }
 function getUsuario(){ return localStorage.getItem('nome')||localStorage.getItem('usuario_nome')||localStorage.getItem('usuario')||'Usuário'; }
-function makeUUID(){ return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,function(c){var r=Math.random()*16|0,v=c==='x'?r:(r&0x3|0x8);return v.toString(16);}); }
-
-function encodeForm(data){
-  var p=[],k;
-  for(k in data){ if(data.hasOwnProperty(k)){ p.push(encodeURIComponent(k)+'='+encodeURIComponent(data[k])); } }
-  return p.join('&');
+function makeUUID(){ return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c=>{ const r=Math.random()*16|0,v=c==='x'?r:(r&0x3|0x8);return v.toString(16);}); }
+async function postForm(url, data){
+  const body = new URLSearchParams(); for (const k in data){ body.append(k, data[k]); }
+  const resp = await fetch(url, { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: body.toString() });
+  return resp.ok ? resp.json() : Promise.reject(new Error('Failed to fetch'));
 }
-function postFormXHR(url, data, ok, err){
-  try{
-    var xhr=new XMLHttpRequest();
-    xhr.open('POST', url, true);
-    xhr.setRequestHeader('Content-Type','application/x-www-form-urlencoded');
-    xhr.onreadystatechange=function(){
-      if(xhr.readyState===4){
-        if(xhr.status>=200 && xhr.status<300){
-          try{ ok(JSON.parse(xhr.responseText)); }catch(e){ err('Resposta inválida'); }
-        }else{ err('HTTP '+xhr.status); }
-      }
-    };
-    xhr.onerror=function(){ err('Falha de rede'); };
-    xhr.send(encodeForm(data));
-  }catch(e){ err(String(e)); }
-}
-
-/* Fila */
-function queueOrSendNow(item, done, fail){
-  if (!navigator.onLine){
-    saveQueueItem(item);
-    return done({sent:false, queued:true});
-  }
-  // 1) upload foto
-  postFormXHR(item.WEBAPP_URL, {
-    action:'upload_foto',
-    usuario:item.usuario, lote:item.lote,
-    cod_atividade:item.cod_atividade, atividade:item.atividade,
-    app_version:item.app_version, submission_uuid:item.submission_uuid,
-    lat:item.lat, long:item.long, accuracy_m:item.accuracy_m,
-    foto_base64:item.foto_base64
-  }, function(up){
-    if(!up || up.status!=='OK'){ saveQueueItem(item); return done({sent:false}); }
-    // 2) gravar linha
-    postFormXHR(item.WEBAPP_URL, {
-      action:'gravar_linha_lt08',
-      app_version:item.app_version, usuario:item.usuario,
-      cod_atividade:item.cod_atividade, atividade:item.atividade,
-      foto: up.foto_url || '', foto_id: up.foto_id || '',
-      lat:item.lat, long:item.long, obs:item.obs
-    }, function(grava){
-      if(!grava || grava.status!=='OK'){ saveQueueItem(item); return done({sent:false}); }
-      done({sent:true});
-    }, function(e2){ saveQueueItem(item); done({sent:false}); });
-  }, function(e1){
-    saveQueueItem(item);
-    done({sent:false});
-  });
-}
-function saveQueueItem(item){
-  try{
-    var arr=[];
-    try{ arr=JSON.parse(localStorage.getItem('evidente_queue')||'[]'); }catch(e){}
-    arr.push(item);
-    localStorage.setItem('evidente_queue', JSON.stringify(arr));
-  }catch(e){}
-}
-/* Tenta sincronizar 1 pendência ao abrir com rede */
-(function(){
-  try{
-    if (!navigator.onLine) return;
-    var arr = JSON.parse(localStorage.getItem('evidente_queue') || '[]');
-    if (!arr.length) return;
-    var next = arr.shift();
-    localStorage.setItem('evidente_queue', JSON.stringify(arr));
-    queueOrSendNow(next, function(){}, function(){});
-  }catch(e){}
-})();
-
-/* Reset */
 function resetAll(){
-  if(stream){ try{ stream.getTracks().forEach(function(t){ t.stop(); }); }catch(e){} stream=null; }
+  if(stream){ try{ stream.getTracks().forEach(t=>t.stop()); }catch(_){} stream=null; }
   currentActivity=null; currentCode=null; currentLat=null; currentLng=null; accuracyM=null;
   els.comment.value='';
+  // volta à lista
+  els.searchWrap.classList.remove('hidden');
+  els.listWrap.classList.remove('hidden');
   els.camCard.classList.add('hidden');
   els.previewCard.classList.add('hidden');
 }
 </script>
 </body>
 </html>
-
