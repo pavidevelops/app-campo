@@ -1,121 +1,197 @@
-// queue.js — Evidente (fila offline + sincronização)
-const DB_NAME = 'evidente-db';
-const STORE = 'outbox';
-const VERSION = 1;
+/* queue.js — Evidente (fila offline + sincronização) — ES5 compat WebView */
+(function (w) {
+  'use strict';
 
-function dbOpen() {
-  return new Promise((res, rej) => {
-    const req = indexedDB.open(DB_NAME, VERSION);
-    req.onupgradeneeded = (e) => {
-      const db = e.target.result;
-      if (!db.objectStoreNames.contains(STORE)) {
-        const st = db.createObjectStore(STORE, { keyPath: 'submission_uuid' });
-        st.createIndex('created_at', 'created_at');
-      }
-    };
-    req.onsuccess = () => res(req.result);
-    req.onerror = () => rej(req.error);
-  });
-}
+  var DB_NAME = 'evidente-db';
+  var STORE = 'outbox';
+  var VERSION = 1;
+  var RUNNING = false;
+  var FLUSH_INTERVAL_MS = 60000; // tenta a cada 60s
 
-async function putItem(item){
-  const db = await dbOpen();
-  return new Promise((res, rej)=>{
-    const tx = db.transaction(STORE, 'readwrite');
-    tx.objectStore(STORE).put(item);
-    tx.oncomplete = () => res();
-    tx.onerror = () => rej(tx.error);
-  });
-}
-async function getAll(){
-  const db = await dbOpen();
-  return new Promise((res, rej)=>{
-    const tx = db.transaction(STORE, 'readonly');
-    const rq = tx.objectStore(STORE).getAll();
-    rq.onsuccess = () => res(rq.result.sort((a,b)=>a.created_at-b.created_at));
-    rq.onerror = () => rej(rq.error);
-  });
-}
-async function del(id){
-  const db = await dbOpen();
-  return new Promise((res, rej)=>{
-    const tx = db.transaction(STORE, 'readwrite');
-    tx.objectStore(STORE).delete(id);
-    tx.oncomplete = () => res();
-    tx.onerror = () => rej(tx.error);
-  });
-}
+  var _db = null;
 
-async function postForm(url, data){
-  const body = new URLSearchParams();
-  Object.entries(data).forEach(([k,v])=> body.append(k, v));
-  const resp = await fetch(url, { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: body.toString() });
-  const text = await resp.text();
-  let json; try{ json = JSON.parse(text); }catch(_){}
-  if(!resp.ok) throw new Error(json?.mensagem || text || 'HTTP error');
-  return json;
-}
-
-async function sendItem(item){
-  // 1) upload_foto
-  const up = await postForm(item.WEBAPP_URL, {
-    action:'upload_foto',
-    usuario:item.usuario, lote:item.lote,
-    cod_atividade:item.cod_atividade, atividade:item.atividade,
-    app_version:item.app_version, submission_uuid:item.submission_uuid,
-    lat:item.lat??'', long:item.long??'', accuracy_m:item.accuracy_m??'',
-    foto_base64:item.foto_base64
-  });
-  if(!up || up.status!=='OK') throw new Error(up?.mensagem || 'Falha no upload');
-
-  // 2) gravar_linha_lt08
-  const grava = await postForm(item.WEBAPP_URL, {
-    action:'gravar_linha_lt08',
-    data_hora:new Date().toISOString(),
-    app_version:item.app_version, usuario:item.usuario,
-    cod_atividade:item.cod_atividade, atividade:item.atividade,
-    foto:up.foto_url||'', foto_id:up.foto_id||'',
-    lat:item.lat??'', long:item.long??'', obs:item.obs||''
-  });
-  if(!grava || grava.status!=='OK') throw new Error(grava?.mensagem || 'Falha ao gravar linha');
-  return true;
-}
-
-let RUNNING = false;
-async function syncAll(){
-  if(RUNNING || !navigator.onLine) return;
-  RUNNING = true;
-  try{
-    const items = await getAll();
-    for(const it of items){
-      try{
-        await sendItem(it);
-        await del(it.submission_uuid);
-      }catch(e){
-        // para aqui (backoff simples)
-        break;
-      }
-    }
-  } finally {
-    RUNNING = false;
+  function dbOpen() {
+    return new Promise(function (res, rej) {
+      if (_db) return res(_db);
+      var req = indexedDB.open(DB_NAME, VERSION);
+      req.onupgradeneeded = function (e) {
+        var db = e.target.result;
+        if (!db.objectStoreNames.contains(STORE)) {
+          var st = db.createObjectStore(STORE, { keyPath: 'submission_uuid' });
+          st.createIndex('created_at', 'created_at', { unique: false });
+        }
+      };
+      req.onsuccess = function () { _db = req.result; res(_db); };
+      req.onerror = function () { rej(req.error || new Error('DB open error')); };
+    });
   }
-}
-window.addEventListener('online', syncAll);
-setInterval(syncAll, 120000); // a cada 2min
 
-// API para a página usar
-async function queueOrSendNow(item){
-  if(navigator.onLine){
-    try{
-      await sendItem(item);
-      return { queued:false, sent:true };
-    }catch(_){
-      await putItem(item);
-      return { queued:true, sent:false };
-    }
-  } else {
-    await putItem(item);
-    return { queued:true, sent:false };
+  function putItem(item) {
+    return dbOpen().then(function (db) {
+      return new Promise(function (res, rej) {
+        var tx = db.transaction(STORE, 'readwrite');
+        tx.oncomplete = function () { res(true); };
+        tx.onerror = function () { rej(tx.error || new Error('tx put error')); };
+        tx.objectStore(STORE).put(item); // put = upsert (evita erro de duplicado)
+      });
+    });
   }
-}
-export { queueOrSendNow, syncAll };
+
+  function getAll() {
+    return dbOpen().then(function (db) {
+      return new Promise(function (res, rej) {
+        var out = [];
+        var tx = db.transaction(STORE, 'readonly');
+        var store = tx.objectStore(STORE);
+        // compat: usa cursor (getAll nem sempre existe)
+        var req = store.index('created_at').openCursor();
+        req.onsuccess = function (e) {
+          var cursor = e.target.result;
+          if (cursor) { out.push(cursor.value); cursor.continue(); }
+        };
+        tx.oncomplete = function () { res(out); };
+        tx.onerror = function () { rej(tx.error || new Error('tx cursor error')); };
+      });
+    });
+  }
+
+  function del(id) {
+    return dbOpen().then(function (db) {
+      return new Promise(function (res, rej) {
+        var tx = db.transaction(STORE, 'readwrite');
+        tx.oncomplete = function () { res(true); };
+        tx.onerror = function () { rej(tx.error || new Error('tx delete error')); };
+        tx.objectStore(STORE).delete(id);
+      });
+    });
+  }
+
+  /* === network === */
+
+  function encodeForm(data) {
+    var p = [], k;
+    for (k in data) if (data.hasOwnProperty(k)) {
+      p.push(encodeURIComponent(k) + '=' + encodeURIComponent(data[k]));
+    }
+    return p.join('&');
+  }
+
+  function postFormXHR(url, data) {
+    return new Promise(function (resolve, reject) {
+      try {
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', url, true);
+        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        xhr.onreadystatechange = function () {
+          if (xhr.readyState === 4) {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              try { resolve(JSON.parse(xhr.responseText)); }
+              catch (e) { reject(new Error('Resposta inválida')); }
+            } else {
+              reject(new Error('HTTP ' + xhr.status));
+            }
+          }
+        };
+        xhr.onerror = function () { reject(new Error('HTTP 0')); };
+        xhr.send(encodeForm(data));
+      } catch (e) {
+        reject(e);
+      }
+    });
+  }
+
+  function safe(v, def) { return (v === null || v === undefined) ? (def || '') : v; }
+
+  // 1 item = upload_foto -> gravar_linha_lt08
+  function sendItem(item) {
+    return postFormXHR(item.WEBAPP_URL, {
+      action: 'upload_foto',
+      usuario: item.usuario,
+      lote: item.lote,
+      cod_atividade: item.cod_atividade,
+      atividade: item.atividade,
+      app_version: item.app_version,
+      submission_uuid: item.submission_uuid,
+      lat: safe(item.lat, ''),
+      long: safe(item.long, ''),
+      accuracy_m: safe(item.accuracy_m, ''),
+      foto_base64: item.foto_base64
+    }).then(function (up) {
+      if (!up || up.status !== 'OK') throw new Error((up && up.mensagem) || 'Falha no upload');
+      return postFormXHR(item.WEBAPP_URL, {
+        action: 'gravar_linha_lt08',
+        app_version: item.app_version,
+        usuario: item.usuario,
+        cod_atividade: item.cod_atividade,
+        atividade: item.atividade,
+        foto: up.foto_url || '',
+        foto_id: up.foto_id || '',
+        lat: safe(item.lat, ''),
+        long: safe(item.long, ''),
+        obs: item.obs || ''
+      });
+    }).then(function (grava) {
+      if (!grava || grava.status !== 'OK') throw new Error((grava && grava.mensagem) || 'Falha ao gravar linha');
+      return true;
+    });
+  }
+
+  function flushOnce() {
+    if (RUNNING || !navigator.onLine) return Promise.resolve(false);
+    RUNNING = true;
+    return getAll().then(function (items) {
+      if (!items.length) { RUNNING = false; return false; }
+      var seq = Promise.resolve();
+      for (var i = 0; i < items.length; i++) {
+        (function (it) {
+          seq = seq.then(function () {
+            if (!navigator.onLine) return; // parou a conexão no meio
+            return sendItem(it).then(function () { return del(it.submission_uuid); });
+          });
+        })(items[i]);
+      }
+      return seq.then(function () {
+        RUNNING = false;
+        return true;
+      }).catch(function () {
+        RUNNING = false; // falhou algum, tenta depois
+        return false;
+      });
+    }).catch(function () {
+      RUNNING = false;
+      return false;
+    });
+  }
+
+  function queueOrSendNow(item, callbacks) {
+    callbacks = callbacks || {};
+    if (navigator.onLine) {
+      return sendItem(item).then(function () {
+        if (callbacks.onSent) { try { callbacks.onSent(); } catch (e) {} }
+        return { sent: true, queued: false };
+      }).catch(function () {
+        return putItem(item).then(function () {
+          if (callbacks.onQueued) { try { callbacks.onQueued(); } catch (e) {} }
+          return { sent: false, queued: true };
+        });
+      });
+    }
+    // offline: guarda direto
+    return putItem(item).then(function () {
+      if (callbacks.onQueued) { try { callbacks.onQueued(); } catch (e) {} }
+      return { sent: false, queued: true };
+    });
+  }
+
+  // eventos e timer
+  w.addEventListener('online', function () { flushOnce(); });
+  setInterval(function () { if (navigator.onLine) flushOnce(); }, FLUSH_INTERVAL_MS);
+  // primeira tentativa pouco depois que a página abre
+  setTimeout(function () { if (navigator.onLine) flushOnce(); }, 2000);
+
+  // expõe API global
+  w.EvidenteQueue = {
+    queueOrSendNow: queueOrSendNow,
+    flushNow: flushOnce
+  };
+})(window);
