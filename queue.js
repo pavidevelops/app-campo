@@ -32,7 +32,7 @@
         var tx = db.transaction(STORE, 'readwrite');
         tx.oncomplete = function () { res(true); };
         tx.onerror = function () { rej(tx.error || new Error('tx put error')); };
-        tx.objectStore(STORE).put(item); // put = upsert (evita erro de duplicado)
+        tx.objectStore(STORE).put(item); // put = upsert
       });
     });
   }
@@ -43,7 +43,7 @@
         var out = [];
         var tx = db.transaction(STORE, 'readonly');
         var store = tx.objectStore(STORE);
-        // compat: usa cursor (getAll nem sempre existe)
+        // compat: cursor (getAll pode não existir)
         var req = store.index('created_at').openCursor();
         req.onsuccess = function (e) {
           var cursor = e.target.result;
@@ -102,8 +102,21 @@
 
   function safe(v, def) { return (v === null || v === undefined) ? (def || '') : v; }
 
+  // normaliza valor de CHUVA para 'SIM' ou ''
+  function normChuva(v) {
+    if (v === true) return 'SIM';
+    if (typeof v === 'string') {
+      var s = v.trim().toLowerCase();
+      if (s === 'sim' || s === 'true' || s === '1' || s === 'yes') return 'SIM';
+      // se já vier 'SIM' em maiúsculas, mantém:
+      if (v === 'SIM') return 'SIM';
+    }
+    return v ? 'SIM' : '';
+  }
+
   // 1 item = upload_foto -> gravar_linha_lt08
   function sendItem(item) {
+    // 1) Upload da foto
     return postFormXHR(item.WEBAPP_URL, {
       action: 'upload_foto',
       usuario: item.usuario,
@@ -118,8 +131,11 @@
       foto_base64: item.foto_base64
     }).then(function (up) {
       if (!up || up.status !== 'OK') throw new Error((up && up.mensagem) || 'Falha no upload');
+
+      // 2) Gravar linha (inclui CHUVA e GPS_FLAG + idempotência)
       return postFormXHR(item.WEBAPP_URL, {
         action: 'gravar_linha_lt08',
+        data_hora: new Date().toISOString(),     // opcional, servidor também preenche
         app_version: item.app_version,
         usuario: item.usuario,
         cod_atividade: item.cod_atividade,
@@ -128,7 +144,10 @@
         foto_id: up.foto_id || '',
         lat: safe(item.lat, ''),
         long: safe(item.long, ''),
-        obs: item.obs || ''
+        obs: item.obs || '',
+        chuva: normChuva(item.chuva),            // >>> coluna J
+        gps_flag: item.gps_flag || '',           // >>> coluna K ('FAKE GPS' ou '')
+        submission_uuid: item.submission_uuid    // ajuda a idempotência no Apps Script
       });
     }).then(function (grava) {
       if (!grava || grava.status !== 'OK') throw new Error((grava && grava.mensagem) || 'Falha ao gravar linha');
@@ -145,7 +164,7 @@
       for (var i = 0; i < items.length; i++) {
         (function (it) {
           seq = seq.then(function () {
-            if (!navigator.onLine) return; // parou a conexão no meio
+            if (!navigator.onLine) return;
             return sendItem(it).then(function () { return del(it.submission_uuid); });
           });
         })(items[i]);
@@ -186,7 +205,6 @@
   // eventos e timer
   w.addEventListener('online', function () { flushOnce(); });
   setInterval(function () { if (navigator.onLine) flushOnce(); }, FLUSH_INTERVAL_MS);
-  // primeira tentativa pouco depois que a página abre
   setTimeout(function () { if (navigator.onLine) flushOnce(); }, 2000);
 
   // expõe API global
