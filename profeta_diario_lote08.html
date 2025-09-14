@@ -156,16 +156,27 @@ let currentActivity=null;
 let currentCode=null;
 let currentLat=null, currentLng=null, accuracyM=null;
 
-document.addEventListener('DOMContentLoaded', () => {
-  renderList(atividades);
-  els.search.addEventListener('input', () => {
-    const t = els.search.value.toLowerCase();
-    const filtered = atividades.filter(a =>
-      a.cod.toLowerCase().includes(t) || a.atividade.toLowerCase().includes(t)
-    );
-    renderList(filtered);
-  });
-});
+/* ---- init robusto (à prova de timing) ---- */
+function initPage() {
+  try {
+    renderList(atividades);
+    els.search.addEventListener('input', () => {
+      const t = els.search.value.toLowerCase();
+      const filtered = atividades.filter(a =>
+        a.cod.toLowerCase().includes(t) || a.atividade.toLowerCase().includes(t)
+      );
+      renderList(filtered);
+    });
+  } catch (e) {
+    console.error('Falha ao inicializar a página:', e);
+  }
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initPage, { once: true });
+} else {
+  initPage();
+}
+/* ------------------------------------------ */
 
 function renderList(arr){
   els.list.innerHTML='';
