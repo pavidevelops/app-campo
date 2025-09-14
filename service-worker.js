@@ -1,6 +1,6 @@
 /* Evidente SW – precache + offline fallback (GitHub Pages /app-campo/) */
 const BASE = '/app-campo/';            // escopo do seu site
-const CACHE_NAME = 'evidente-v2';      // mude para v3, v4... quando atualizar assets
+const CACHE_NAME = 'evidente-v3';      // mude para v3, v4... quando atualizar assets
 
 // Arquivos essenciais que devem abrir offline
 const PRECACHE_URLS = [
