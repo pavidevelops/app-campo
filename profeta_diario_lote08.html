@@ -14,16 +14,16 @@
     header{background:linear-gradient(135deg,var(--primary),var(--primary-600));color:#fff;border-radius:12px;padding:16px 14px;margin-bottom:16px;box-shadow:0 6px 18px rgba(0,0,0,0.08)}
     h1{margin:0 0 4px;font-size:20px}
     .subtitle{opacity:.9;font-size:14px}
-    .search-container{padding:10px 0} /* <- sem sticky */
+    .search-container{padding:10px 0}
     #search{width:100%;padding:12px 14px;border:1px solid var(--border);border-radius:999px;background:#fff;font-size:16px;outline:none}
     #search:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(90,141,238,.2)}
-    .buttons-container{display:grid;grid-template-columns:1fr;gap:8px;margin-top:8px} /* <- sem max-height/overflow */
+    .buttons-container{display:grid;grid-template-columns:1fr;gap:8px;margin-top:8px}
     .activity-btn{background:#fff;border:1px solid var(--border);border-radius:10px;padding:12px 14px;text-align:left;cursor:pointer;transition:.15s;box-shadow:0 2px 6px rgba(0,0,0,.04)}
     .activity-btn strong{color:var(--primary)}
     .activity-btn:active{transform:scale(.98);background:#F4F8FF}
     .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-top:14px;box-shadow:0 6px 18px rgba(0,0,0,.06)}
     .section-title{margin:0 0 10px;font-weight:700}
-    #camera{width:100%;background:#0b1220;border-radius:10px} /* tirei aspect-ratio por causa do WebView */
+    #camera{width:100%;background:#0b1220;border-radius:10px}
     .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
     .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
     button{padding:12px;border:0;border-radius:10px;font-weight:700;cursor:pointer}
@@ -46,11 +46,11 @@
     <div class="subtitle">Selecione a atividade, capture a foto e envie para a planilha</div>
   </header>
 
-  <div class="search-container">
+  <div id="searchWrap" class="search-container">
     <input id="search" placeholder="Buscar atividade..." autocomplete="off"/>
   </div>
 
-  <div id="buttons-container" class="buttons-container"></div>
+  <div id="listWrap" class="buttons-container"></div>
 
   <!-- Câmera -->
   <section id="camera-card" class="card hidden">
@@ -123,8 +123,10 @@ var atividades = [
 ];
 
 var els = {
+  searchWrap: document.getElementById('searchWrap'),
+  listWrap: document.getElementById('listWrap'),
   search: document.getElementById('search'),
-  list: document.getElementById('buttons-container'),
+  list: document.getElementById('listWrap'),
   camCard: document.getElementById('camera-card'),
   camTitle: document.getElementById('camera-title'),
   video: document.getElementById('camera'),
@@ -175,6 +177,15 @@ function renderList(arr){
   }
 }
 
+/* util: rolar até um elemento com pequeno offset */
+function scrollToShow(el, offset){
+  try{
+    var rect = el.getBoundingClientRect();
+    var top = (window.pageYOffset || document.documentElement.scrollTop || 0) + rect.top - (offset||8);
+    window.scrollTo({ top: top, behavior: 'smooth' });
+  }catch(e){}
+}
+
 /* getUserMedia compat */
 function getUserMediaCompat(constraints){
   var nav = navigator;
@@ -184,11 +195,16 @@ function getUserMediaCompat(constraints){
   return Promise.reject(new Error('getUserMedia não suportado neste dispositivo'));
 }
 
-/* abre câmera */
+/* abre câmera (foco) */
 function openCamera(atividade){
   currentActivity = atividade.atividade;
   currentCode = atividade.cod;
   els.camTitle.textContent = atividade.cod+' — '+atividade.atividade;
+
+  // Oculta busca + lista para a câmera ficar em evidência
+  els.searchWrap.style.display = 'none';
+  els.list.style.display = 'none';
+
   els.camCard.classList.remove('hidden');
   els.previewCard.classList.add('hidden');
   els.status.textContent='';
@@ -199,12 +215,27 @@ function openCamera(atividade){
     .then(function(s){
       stream = s;
       els.video.srcObject = s;
-      try { var p = els.video.play(); if (p && p.catch) p.catch(function(){}); } catch(e){}
-      els.camCard.scrollIntoView({behavior:'smooth', block:'start'});
+
+      // quando o vídeo estiver pronto, rola até a câmera
+      els.video.onloadedmetadata = function(){
+        try { var p = els.video.play(); if (p && p.catch) p.catch(function(){}); } catch(e){}
+        scrollToShow(els.camCard, 10);
+      };
+      // fallback extra (alguns webviews não disparam o evento)
+      setTimeout(function(){ scrollToShow(els.camCard, 10); }, 300);
     })
-    .catch(function(err){ alert('Não foi possível abrir a câmera: '+err.message); });
+    .catch(function(err){
+      alert('Não foi possível abrir a câmera: '+err.message);
+      restoreList();
+    });
 
   capturePosition();
+}
+
+/* restaura busca + lista */
+function restoreList(){
+  els.searchWrap.style.display = '';
+  els.list.style.display = '';
 }
 
 /* GPS */
@@ -246,7 +277,7 @@ els.capture.onclick = function(){
   if(stream){ try{ stream.getTracks().forEach(function(t){ t.stop(); }); }catch(e){} stream=null; }
   els.camCard.classList.add('hidden');
   els.previewCard.classList.remove('hidden');
-  els.previewCard.scrollIntoView({behavior:'smooth'});
+  scrollToShow(els.previewCard, 10);
 };
 
 els.retry.onclick = function(){ openCamera({cod: currentCode, atividade: currentActivity}); };
@@ -254,10 +285,11 @@ els.cancel.onclick = function(){ resetAll(); };
 els.closeCam.onclick = function(){
   if(stream){ try{ stream.getTracks().forEach(function(t){ t.stop(); }); }catch(e){} stream=null; }
   els.camCard.classList.add('hidden');
+  restoreList();
   window.scrollTo({top:0, behavior:'smooth'});
 };
 
-/* envio */
+/* envio (mantido) */
 els.save.onclick = function(){
   try{
     if(!currentActivity || !currentCode){ alert('Selecione uma atividade.'); return; }
@@ -323,7 +355,10 @@ function postFormXHR(url, data, ok, err){
 function resetAll(){
   if(stream){ try{ stream.getTracks().forEach(function(t){ t.stop(); }); }catch(e){} stream=null; }
   currentActivity=null; currentCode=null; currentLat=null; currentLng=null; accuracyM=null;
-  els.comment.value=''; els.camCard.classList.add('hidden'); els.previewCard.classList.add('hidden');
+  els.comment.value='';
+  els.camCard.classList.add('hidden');
+  els.previewCard.classList.add('hidden');
+  restoreList();
 }
 </script>
 </body>
