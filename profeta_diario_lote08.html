@@ -14,16 +14,16 @@
     header{background:linear-gradient(135deg,var(--primary),var(--primary-600));color:#fff;border-radius:12px;padding:16px 14px;margin-bottom:16px;box-shadow:0 6px 18px rgba(0,0,0,0.08)}
     h1{margin:0 0 4px;font-size:20px}
     .subtitle{opacity:.9;font-size:14px}
-    .search-container{position:sticky;top:0;z-index:5;background:var(--bg);padding:10px 0}
+    .search-container{padding:10px 0} /* <- sem sticky */
     #search{width:100%;padding:12px 14px;border:1px solid var(--border);border-radius:999px;background:#fff;font-size:16px;outline:none}
     #search:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(90,141,238,.2)}
-    .buttons-container{display:grid;grid-template-columns:1fr;gap:8px;max-height:44vh;overflow:auto;margin-top:8px}
+    .buttons-container{display:grid;grid-template-columns:1fr;gap:8px;margin-top:8px} /* <- sem max-height/overflow */
     .activity-btn{background:#fff;border:1px solid var(--border);border-radius:10px;padding:12px 14px;text-align:left;cursor:pointer;transition:.15s;box-shadow:0 2px 6px rgba(0,0,0,.04)}
     .activity-btn strong{color:var(--primary)}
     .activity-btn:active{transform:scale(.98);background:#F4F8FF}
     .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-top:14px;box-shadow:0 6px 18px rgba(0,0,0,.06)}
     .section-title{margin:0 0 10px;font-weight:700}
-    #camera{width:100%;aspect-ratio:4/3;background:#0b1220;border-radius:10px}
+    #camera{width:100%;background:#0b1220;border-radius:10px} /* tirei aspect-ratio por causa do WebView */
     .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
     .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
     button{padding:12px;border:0;border-radius:10px;font-weight:700;cursor:pointer}
@@ -55,7 +55,6 @@
   <!-- Câmera -->
   <section id="camera-card" class="card hidden">
     <h2 class="section-title" id="camera-title">Câmera</h2>
-    <!-- muted ajuda autoplay no WebView -->
     <video id="camera" autoplay playsinline muted></video>
     <div class="grid2" style="margin-top:10px">
       <button id="capture" class="btn-ok">Capturar Foto</button>
@@ -93,7 +92,6 @@ var APP_VERSION = '1.0';
 var LOTE = '08';
 /* ==================== */
 
-/* atividades */
 var atividades = [
   { cod:"421100", atividade:"CAIXA DE RETENÇÃO" },
   { cod:"804300", atividade:"CAPINA MANUAL" },
@@ -143,9 +141,7 @@ var els = {
   sendingOverlay: document.getElementById('sendingOverlay')
 };
 
-var stream=null;
-var currentActivity=null;
-var currentCode=null;
+var stream=null, currentActivity=null, currentCode=null;
 var currentLat=null, currentLng=null, accuracyM=null;
 
 /* init */
@@ -174,9 +170,7 @@ function renderList(arr){
     var b=document.createElement('button');
     b.className='activity-btn';
     b.innerHTML='<strong>'+a.cod+'</strong> '+a.atividade;
-    (function(item){
-      b.onclick=function(){ openCamera(item); };
-    })(a);
+    (function(item){ b.onclick=function(){ openCamera(item); }; })(a);
     els.list.appendChild(b);
   }
 }
@@ -205,25 +199,17 @@ function openCamera(atividade){
     .then(function(s){
       stream = s;
       els.video.srcObject = s;
-      try {
-        var p = els.video.play();
-        if (p && p.catch) { p.catch(function(){}); }
-      } catch(e){}
+      try { var p = els.video.play(); if (p && p.catch) p.catch(function(){}); } catch(e){}
       els.camCard.scrollIntoView({behavior:'smooth', block:'start'});
     })
-    .catch(function(err){
-      alert('Não foi possível abrir a câmera: '+err.message);
-    });
+    .catch(function(err){ alert('Não foi possível abrir a câmera: '+err.message); });
 
   capturePosition();
 }
 
 /* GPS */
 function capturePosition(){
-  if(!('geolocation' in navigator)){
-    els.gpsHint.textContent='GPS indisponível neste dispositivo.';
-    return;
-  }
+  if(!('geolocation' in navigator)){ els.gpsHint.textContent='GPS indisponível neste dispositivo.'; return; }
   els.gpsHint.textContent='Capturando posição…';
   navigator.geolocation.getCurrentPosition(
     function(pos){
@@ -232,9 +218,7 @@ function capturePosition(){
       accuracyM = Math.round(pos.coords.accuracy);
       els.gpsHint.textContent = 'LAT '+currentLat.toFixed(6)+'  LONG '+currentLng.toFixed(6)+'  (±'+accuracyM+' m)';
     },
-    function(){
-      els.gpsHint.textContent = 'Sem acesso ao GPS (permita a localização para registrar LAT/LONG).';
-    },
+    function(){ els.gpsHint.textContent = 'Sem acesso ao GPS (permita a localização para registrar LAT/LONG).'; },
     {enableHighAccuracy:true, timeout:8000, maximumAge:0}
   );
 }
@@ -250,10 +234,8 @@ els.capture.onclick = function(){
 
   var now = new Date();
   var dateStr = now.toLocaleString();
-  ctx.fillStyle='rgba(0,0,0,.35)';
-  ctx.fillRect(0, h-92, w, 92);
-  ctx.fillStyle='#fff';
-  ctx.font='bold 22px Arial';
+  ctx.fillStyle='rgba(0,0,0,.35)'; ctx.fillRect(0, h-92, w, 92);
+  ctx.fillStyle='#fff'; ctx.font='bold 22px Arial';
   ctx.fillText(currentCode+' - '+currentActivity, 16, h-60);
   ctx.font='16px Arial';
   var locLine = (currentLat && currentLng)
@@ -288,57 +270,33 @@ els.save.onclick = function(){
 
     var dataURL = els.canvas.toDataURL('image/jpeg', 0.8);
 
-    // 1) upload foto
     postFormXHR(WEBAPP_URL, {
       action:'upload_foto',
-      usuario:usuario,
-      lote: LOTE,
-      cod_atividade: currentCode,
-      atividade: currentActivity,
-      app_version: APP_VERSION,
-      submission_uuid: uuid,
-      lat: (currentLat!=null?currentLat:''),
-      long: (currentLng!=null?currentLng:''),
-      accuracy_m: (accuracyM!=null?accuracyM:''),
+      usuario:usuario, lote: LOTE,
+      cod_atividade: currentCode, atividade: currentActivity,
+      app_version: APP_VERSION, submission_uuid: uuid,
+      lat: (currentLat!=null?currentLat:''), long: (currentLng!=null?currentLng:''), accuracy_m: (accuracyM!=null?accuracyM:''),
       foto_base64: dataURL
     }, function(up){
       if(!up || up.status!=='OK'){ throwSend('Falha no upload da foto'); return; }
-
       setStatus('Enviando dados…');
-      // 2) gravar linha
       postFormXHR(WEBAPP_URL, {
         action:'gravar_linha_lt08',
-        app_version: APP_VERSION,
-        usuario: usuario,
-        cod_atividade: currentCode,
-        atividade: currentActivity,
-        foto: up.foto_url || '',
-        foto_id: up.foto_id || '',
-        lat: (currentLat!=null?currentLat:''),
-        long: (currentLng!=null?currentLng:''),
-        obs: obs
+        app_version: APP_VERSION, usuario: usuario,
+        cod_atividade: currentCode, atividade: currentActivity,
+        foto: up.foto_url || '', foto_id: up.foto_id || '',
+        lat: (currentLat!=null?currentLat:''), long: (currentLng!=null?currentLng:''), obs: obs
       }, function(grava){
         if(!grava || grava.status!=='OK'){ throwSend('Falha ao gravar a linha'); return; }
-        setStatus('✅ Enviado com sucesso!');
-        alert('Registro enviado!');
-        resetAll();
-        window.scrollTo({top:0, behavior:'smooth'});
-        showSending(false);
+        setStatus('✅ Enviado com sucesso!'); alert('Registro enviado!');
+        resetAll(); window.scrollTo({top:0, behavior:'smooth'}); showSending(false);
       }, function(e2){ throwSend(e2); });
     }, function(e1){ throwSend(e1); });
 
-  }catch(err){
-    setStatus('❌ '+err);
-    alert('Erro: '+err);
-    showSending(false);
-  }
+  }catch(err){ setStatus('❌ '+err); alert('Erro: '+err); showSending(false); }
 };
 
-function throwSend(msg){
-  setStatus('❌ '+msg);
-  alert('Erro: '+msg);
-  showSending(false);
-}
+function throwSend(msg){ setStatus('❌ '+msg); alert('Erro: '+msg); showSending(false); }
 
 /* helpers */
 function setStatus(t){ els.status.textContent=t; }
@@ -346,20 +304,15 @@ function showSending(on){ els.sendingOverlay.classList.toggle('hidden', !on); }
 function getUsuario(){ return localStorage.getItem('nome')||localStorage.getItem('usuario_nome')||localStorage.getItem('usuario')||'Usuário'; }
 function makeUUID(){ return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,function(c){var r=Math.random()*16|0,v=c==='x'?r:(r&0x3|0x8);return v.toString(16);}); }
 
-function encodeForm(data){
-  var p=[],k; for(k in data){ if(data.hasOwnProperty(k)){ p.push(encodeURIComponent(k)+'='+encodeURIComponent(data[k])); } }
-  return p.join('&');
-}
+function encodeForm(data){ var p=[],k; for(k in data){ if(data.hasOwnProperty(k)){ p.push(encodeURIComponent(k)+'='+encodeURIComponent(data[k])); } } return p.join('&'); }
 function postFormXHR(url, data, ok, err){
   try{
-    var xhr=new XMLHttpRequest();
-    xhr.open('POST', url, true);
+    var xhr=new XMLHttpRequest(); xhr.open('POST', url, true);
     xhr.setRequestHeader('Content-Type','application/x-www-form-urlencoded');
     xhr.onreadystatechange=function(){
       if(xhr.readyState===4){
-        if(xhr.status>=200 && xhr.status<300){
-          try{ ok(JSON.parse(xhr.responseText)); }catch(e){ err('Resposta inválida'); }
-        }else{ err('HTTP '+xhr.status); }
+        if(xhr.status>=200 && xhr.status<300){ try{ ok(JSON.parse(xhr.responseText)); }catch(e){ err('Resposta inválida'); } }
+        else{ err('HTTP '+xhr.status); }
       }
     };
     xhr.onerror=function(){ err('Falha de rede'); };
@@ -370,9 +323,7 @@ function postFormXHR(url, data, ok, err){
 function resetAll(){
   if(stream){ try{ stream.getTracks().forEach(function(t){ t.stop(); }); }catch(e){} stream=null; }
   currentActivity=null; currentCode=null; currentLat=null; currentLng=null; accuracyM=null;
-  els.comment.value='';
-  els.camCard.classList.add('hidden');
-  els.previewCard.classList.add('hidden');
+  els.comment.value=''; els.camCard.classList.add('hidden'); els.previewCard.classList.add('hidden');
 }
 </script>
 </body>
