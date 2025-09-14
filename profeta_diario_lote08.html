@@ -9,19 +9,39 @@
       --primary:#5A8DEE;--primary-600:#4B7CE0;--success:#10B981;--danger:#EF4444;--warn:#F59E0B;--text:#0F172A;--muted:#64748B;--bg:#EEF5FF;--card:#fff;--border:#DBE6FF;
     }
     *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;background:var(--bg);color:var(--text)}
-    .container{max-width:900px;margin:0 auto;padding:16px}
-    header{background:linear-gradient(135deg,var(--primary),var(--primary-600));color:#fff;border-radius:12px;padding:16px 14px;margin-bottom:16px;box-shadow:0 6px 18px rgba(0,0,0,0.08)}
-    h1{margin:0 0 4px;font-size:20px}
-    .subtitle{opacity:.9;font-size:14px}
-    .search-container{position:sticky;top:0;z-index:5;background:var(--bg);padding:10px 0}
-    #search{width:100%;padding:12px 14px;border:1px solid var(--border);border-radius:999px;background:#fff;font-size:16px;outline:none}
+    body{
+      margin:0;
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;
+      background:var(--bg);color:var(--text);
+      padding-top: 14px;                 /* ↓ dá um respiro no topo (WebView) */
+    }
+    .container{max-width:900px;margin:0 auto;padding:0 16px 20px}
+    header{
+      background:linear-gradient(135deg,var(--primary),var(--primary-600));
+      color:#fff;border-radius:14px;padding:18px 16px;margin:6px 0 16px;
+      box-shadow:0 6px 18px rgba(0,0,0,0.08)
+    }
+    h1{margin:0 0 6px;font-size:20px}
+    .subtitle{opacity:.9;font-size:14px;line-height:1.35}
+    .search-container{position:sticky;top:0;z-index:5;background:var(--bg);padding:6px 0 10px}
+    #search{
+      width:100%;padding:12px 14px;border:1px solid var(--border);border-radius:999px;
+      background:#fff;font-size:16px;outline:none
+    }
     #search:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(90,141,238,.2)}
-    .buttons-container{display:grid;grid-template-columns:1fr;gap:8px;max-height:44vh;overflow:auto;margin-top:8px}
-    .activity-btn{background:#fff;border:1px solid var(--border);border-radius:10px;padding:12px 14px;text-align:left;cursor:pointer;transition:.15s;box-shadow:0 2px 6px rgba(0,0,0,.04)}
+    .buttons-container{
+      display:grid;grid-template-columns:1fr;gap:8px;max-height:48vh;overflow:auto;margin-top:8px
+    }
+    .activity-btn{
+      background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px 14px;
+      text-align:left;cursor:pointer;transition:.15s;box-shadow:0 2px 6px rgba(0,0,0,.04)
+    }
     .activity-btn strong{color:var(--primary)}
     .activity-btn:active{transform:scale(.98);background:#F4F8FF}
-    .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-top:14px;box-shadow:0 6px 18px rgba(0,0,0,.06)}
+    .card{
+      background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-top:14px;
+      box-shadow:0 6px 18px rgba(0,0,0,.06)
+    }
     .section-title{margin:0 0 10px;font-weight:700}
     #camera{width:100%;aspect-ratio:4/3;background:#0b1220;border-radius:10px}
     .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -57,7 +77,10 @@
     <input id="search" placeholder="Buscar atividade..." autocomplete="off"/>
   </div>
 
-  <div id="buttons-container" class="buttons-container"></div>
+  <div id="buttons-container" class="buttons-container">
+    <!-- Fallback render (aparece mesmo se JS travar; JS substitui depois) -->
+    <button class="activity-btn" disabled>Carregando atividades…</button>
+  </div>
 
   <!-- Câmera -->
   <section id="camera-card" class="card hidden">
@@ -99,6 +122,31 @@ var APP_VERSION = '1.0';
 var LOTE = '08';
 /* ================== */
 
+/* Polyfill super simples de Promise (para WebView muito antigo) */
+(function(){
+  if(typeof Promise==='undefined'){
+    function P(fn){var res,rej,done=false,thens=[];
+      function resolve(v){ if(done)return; done=true; res=v; thens.forEach(function(t){t();}); }
+      function reject(e){ if(done)return; done=true; rej=e; thens.forEach(function(t){t();}); }
+      this.then=function(onRes,onRej){ return new P(function(r,j){
+        var run=function(){
+          try{
+            if(rej!==undefined){
+              if(onRej){ r(onRej(rej)); } else { j(rej); }
+            }else{
+              r(onRes?onRes(res):res);
+            }
+          }catch(e){ j(e); }
+        };
+        if(done) setTimeout(run,0); else thens.push(run);
+      }); };
+      try{ fn(resolve,reject); }catch(e){ reject(e); }
+    }
+    window.Promise=P;
+  }
+})();
+
+/* Lista de atividades */
 var atividades = [
   { cod:"421100", atividade:"CAIXA DE RETENÇÃO" },
   { cod:"804300", atividade:"CAPINA MANUAL" },
@@ -129,6 +177,7 @@ var atividades = [
   { cod:"795011", atividade:"Fornecimento e aplicação de Grout" }
 ];
 
+/* Referências */
 var els = {
   search: document.getElementById('search'),
   list: document.getElementById('buttons-container'),
@@ -148,12 +197,10 @@ var els = {
   sendingOverlay: document.getElementById('sendingOverlay')
 };
 
-var stream=null;
-var currentActivity=null;
-var currentCode=null;
+var stream=null, currentActivity=null, currentCode=null;
 var currentLat=null, currentLng=null, accuracyM=null;
 
-/* ========= Init (à prova de timing) ========= */
+/* ===== Init robusto: roda sempre e re-tenta se necessário ===== */
 function initPage() {
   try {
     renderList(atividades);
@@ -164,28 +211,47 @@ function initPage() {
       });
       renderList(filtered);
     });
-  } catch (e) { console.error('Falha ao inicializar a página:', e); }
+
+    // Se por algum motivo a lista ficou vazia, re-tenta em 300ms
+    setTimeout(function(){
+      if (!els.list.children.length) renderList(atividades);
+    }, 300);
+  } catch (e) {
+    console.error('Falha ao inicializar:', e);
+  }
 }
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initPage, { once: true });
 } else { initPage(); }
-/* ============================================ */
 
+/* ===== Render ===== */
 function renderList(arr){
-  els.list.innerHTML='';
-  if(!arr.length){ els.list.innerHTML='<div class="muted">Nada encontrado.</div>'; return; }
-  var frag = document.createDocumentFragment();
-  arr.forEach(function(a){
-    var b=document.createElement('button');
-    b.className='activity-btn';
-    b.innerHTML='<strong>'+a.cod+'</strong> '+a.atividade;
-    b.onclick=function(){ openCamera(a); };
-    frag.appendChild(b);
-  });
-  els.list.appendChild(frag);
+  var html = '';
+  if(!arr.length){
+    html = '<div class="muted">Nada encontrado.</div>';
+  } else {
+    for (var i=0;i<arr.length;i++){
+      html += '<button class="activity-btn" data-cod="'+arr[i].cod+'"><strong>'+arr[i].cod+'</strong> '+arr[i].atividade+'</button>';
+    }
+  }
+  els.list.innerHTML = html;
+
+  // delegação de eventos (menos bug em WebView antigo)
+  els.list.onclick = function(ev){
+    var b = ev.target;
+    while (b && !b.classList.contains('activity-btn')) b = b.parentNode;
+    if (!b) return;
+    var cod = b.getAttribute('data-cod');
+    for (var j=0;j<atividades.length;j++){
+      if (atividades[j].cod === cod) {
+        openCamera(atividades[j]);
+        break;
+      }
+    }
+  };
 }
 
-/* getUserMedia compat */
+/* ===== Câmera (compat) ===== */
 function getUserMediaCompat(constraints){
   var nav = navigator;
   if (nav.mediaDevices && nav.mediaDevices.getUserMedia) {
@@ -218,6 +284,7 @@ function openCamera(atividade){
   capturePosition();
 }
 
+/* ===== GPS ===== */
 function capturePosition(){
   if(!('geolocation' in navigator)){
     els.gpsHint.textContent='GPS indisponível neste dispositivo.'; return;
@@ -237,6 +304,7 @@ function capturePosition(){
   );
 }
 
+/* ===== Captura frame ===== */
 els.capture.onclick = function () {
   if(!stream){ alert('Abra a câmera primeiro.'); return; }
 
@@ -269,9 +337,9 @@ els.capture.onclick = function () {
 
 els.retry.onclick = function(){ openCamera({cod: currentCode, atividade: currentActivity}); };
 els.cancel.onclick = function(){ resetAll(); };
-els.closeCam.onclick = function(){ if(stream){ stream.getTracks().forEach(function(t){ t.stop(); }); } stream=null; els.camCard.classList.add('hidden'); };
+els.closeCam.onclick = function(){ if(stream){ stream.getTracks().forEach(function(t){ t.stop()); } stream=null; els.camCard.classList.add('hidden'); };
 
-/* ===== envio ===== */
+/* ===== Envio / Fila ===== */
 els.save.onclick = function () {
   if(!currentActivity || !currentCode){ alert('Selecione uma atividade.'); return; }
 
@@ -302,22 +370,18 @@ els.save.onclick = function () {
 
   queueOrSendNowCompat(item).then(function(res){
     if(res && res.sent){
-      setStatus('✅ Enviado!');
-      alert('Registro enviado!');
+      setStatus('✅ Enviado!'); alert('Registro enviado!');
     } else {
       setStatus('📦 Sem internet: registro salvo. Será enviado automaticamente quando a rede voltar.');
       alert('Sem internet: pendência salva. Vamos enviar assim que a rede voltar.');
     }
-    resetAll();
-    window.scrollTo({top:0, behavior:'smooth'});
+    resetAll(); window.scrollTo({top:0, behavior:'smooth'});
   }).catch(function(err){
-    console.error(err);
-    setStatus('❌ '+err.message);
-    alert('Erro: '+err.message);
+    console.error(err); setStatus('❌ '+err.message); alert('Erro: '+err.message);
   }).finally(function(){ showSending(false); });
 };
 
-/* ===== helpers ===== */
+/* ===== Helpers ===== */
 function setStatus(t){ els.status.textContent=t; }
 function showSending(on){ els.sendingOverlay.classList.toggle('hidden', !on); }
 function getUsuario(){
@@ -331,14 +395,10 @@ function makeUUID(){
     var r=Math.random()*16|0, v=c==='x'?r:(r&0x3|0x8); return v.toString(16);
   });
 }
-
-/* URL-encode form + fetch/XHR compat */
 function encodeForm(data){
-  var p=[], k;
-  for(k in data){ if(data.hasOwnProperty(k)){
+  var p=[], k; for(k in data){ if(data.hasOwnProperty(k)){
     p.push(encodeURIComponent(k)+'='+encodeURIComponent(data[k]));
-  }}
-  return p.join('&');
+  }} return p.join('&');
 }
 function postForm(url, data){
   var body = encodeForm(data);
@@ -360,63 +420,44 @@ function postForm(url, data){
     xhr.send(body);
   });
 }
-
 function resetAll(){
-  if(stream){ stream.getTracks().forEach(function(t){ t.stop(); }); stream=null; }
+  if(stream){ try{ stream.getTracks().forEach(function(t){ t.stop(); }); }catch(e){} stream=null; }
   currentActivity=null; currentCode=null; currentLat=null; currentLng=null; accuracyM=null;
   els.comment.value=''; els.camCard.classList.add('hidden'); els.previewCard.classList.add('hidden');
 }
 
-/* Fila offline/online compatível com WebView */
+/* ===== Fila compat ===== */
 function queueOrSendNowCompat(item){
   return new Promise(function(resolve){
-    if (!navigator.onLine) {
-      saveQueueItem(item);
-      resolve({sent:false, queued:true});
-      return;
-    }
-    // online: faz upload e grava linha
+    if (!navigator.onLine) { saveQueueItem(item); resolve({sent:false, queued:true}); return; }
     postForm(item.WEBAPP_URL, {
-      action:'upload_foto',
-      usuario:item.usuario,
-      lote:item.lote,
-      cod_atividade:item.cod_atividade,
-      atividade:item.atividade,
-      app_version:item.app_version,
-      submission_uuid:item.submission_uuid,
-      lat:item.lat, long:item.long, accuracy_m:item.accuracy_m,
-      foto_base64:item.foto_base64
+      action:'upload_foto', usuario:item.usuario, lote:item.lote,
+      cod_atividade:item.cod_atividade, atividade:item.atividade,
+      app_version:item.app_version, submission_uuid:item.submission_uuid,
+      lat:item.lat, long:item.long, accuracy_m:item.accuracy_m, foto_base64:item.foto_base64
     }).then(function(up){
       if(!up || up.status!=='OK') throw new Error(up && up.mensagem ? up.mensagem : 'Falha no upload');
       return postForm(item.WEBAPP_URL, {
         action:'gravar_linha_lt08',
-        app_version:item.app_version,
-        usuario:item.usuario,
-        cod_atividade:item.cod_atividade,
-        atividade:item.atividade,
-        foto: up.foto_url || '',
-        foto_id: up.foto_id || '',
+        app_version:item.app_version, usuario:item.usuario,
+        cod_atividade:item.cod_atividade, atividade:item.atividade,
+        foto: up.foto_url || '', foto_id: up.foto_id || '',
         lat:item.lat, long:item.long, obs:item.obs
       });
     }).then(function(grava){
       if(!grava || grava.status!=='OK') throw new Error(grava && grava.mensagem ? grava.mensagem : 'Falha ao gravar a linha');
       resolve({sent:true});
     }).catch(function(e){
-      // falhou online? guarda pendência
-      saveQueueItem(item);
-      resolve({sent:false, error:String(e)});
+      saveQueueItem(item); resolve({sent:false, error:String(e)});
     });
   });
 }
-
 function saveQueueItem(item){
   try{
     var arr = []; try{ arr = JSON.parse(localStorage.getItem('evidente_queue') || '[]'); }catch(e){}
-    arr.push(item);
-    localStorage.setItem('evidente_queue', JSON.stringify(arr));
+    arr.push(item); localStorage.setItem('evidente_queue', JSON.stringify(arr));
   }catch(e){}
 }
-
 /* tenta sincronizar pendências ao abrir com rede */
 (function syncQueueIfOnline(){
   try{
@@ -433,8 +474,7 @@ function saveQueueItem(item){
 <!-- (Opcional) Registrar o SW se abrirem esta página direto -->
 <script>
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/app-campo/service-worker.js')
-    .catch(function(){});
+  navigator.serviceWorker.register('/app-campo/service-worker.js').catch(function(){});
 }
 </script>
 </body>
