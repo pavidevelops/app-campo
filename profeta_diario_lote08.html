@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -38,6 +39,28 @@
     .hidden{display:none!important}
     .sending{position:fixed; inset:0; background:rgba(255,255,255,.85); display:flex; align-items:center; justify-content:center; z-index:9999;}
     .sending img{ width:min(240px,50vw); height:auto; display:block; }
+
+    /* Toast (mensagem flutuante sem “a página diz…”) */
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 18px;
+      transform: translateX(-50%) translateY(10px);
+      background: #0f172a;
+      color: #fff;
+      padding: 12px 16px;
+      border-radius: 10px;
+      box-shadow: 0 8px 20px rgba(0,0,0,.25);
+      font-size: 15px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .25s, transform .25s;
+      z-index: 100000;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .toast.ok  { background: #10b981; }  /* verde */
+    .toast.err { background: #ef4444; }  /* vermelho */
+
     @media (max-width:520px){.grid2,.grid3{grid-template-columns:1fr}}
   </style>
 </head>
@@ -69,7 +92,7 @@
   <section id="preview-card" class="card hidden">
     <h2 class="section-title">
       Pré-visualização
-      <!-- NOVO: checkbox de chuva -->
+      <!-- checkbox de chuva -->
       <label class="chk" title="Marque se estava chovendo no momento da foto">
         <input type="checkbox" id="rainChk"> chuva
       </label>
@@ -92,6 +115,9 @@
 <div id="sendingOverlay" class="sending hidden" aria-hidden="true">
   <img src="send_data.gif" alt="Enviando…"/>
 </div>
+
+<!-- Toast -->
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <script>
 /* ====== CONFIG ====== */
@@ -165,6 +191,20 @@ var stream=null, currentActivity=null, currentCode=null;
 var currentLat=null, currentLng=null, accuracyM=null;
 /* FIX congelado no clique */
 var fixLat=null, fixLng=null, fixAcc=null;
+
+/* ----- Toast helpers ----- */
+var __toastTimer;
+function showToast(text, type) {
+  var el = document.getElementById('toast');
+  if (!el) return;
+  el.textContent = text;
+  el.className = 'toast ' + (type === 'err' ? 'err' : 'ok');
+  void el.offsetWidth; // reflow p/ reiniciar animação
+  el.classList.add('show');
+  clearTimeout(__toastTimer);
+  __toastTimer = setTimeout(function(){ el.classList.remove('show'); }, 2200);
+}
+/* ------------------------- */
 
 /* init UI */
 function init(){
@@ -241,7 +281,7 @@ function openCamera(atividade){
       setTimeout(function(){ scrollToShow(els.camCard, 10); }, 300);
     })
     .catch(function(err){
-      alert('Não foi possível abrir a câmera: '+err.message);
+      showToast('Não foi possível abrir a câmera: ' + err.message, 'err');
       restoreList();
     });
 
@@ -301,7 +341,7 @@ function getFreshFix(targetAcc, maxWaitMs){
 
 /* CAPTURAR com fix fresco */
 els.capture.onclick = function(){
-  if(!stream){ alert('Abra a câmera primeiro.'); return; }
+  if(!stream){ showToast('Abra a câmera primeiro.', 'err'); return; }
   els.capture.disabled = true;
   els.capture.textContent = 'Aguarde, capturando imagens...';
   els.gpsHint.textContent = 'Buscando coordenadas precisas…';
@@ -356,13 +396,13 @@ els.closeCam.onclick = function(){
 /* Envio (fila/offline se disponível) */
 els.save.onclick = function () {
   try{
-    if(!currentActivity || !currentCode){ alert('Selecione uma atividade.'); return; }
+    if(!currentActivity || !currentCode){ showToast('Selecione uma atividade.', 'err'); return; }
 
     var usuario = getUsuario();
     var obs = (els.comment.value || '').trim();
     var uuid = makeUUID();
-    var chuvaVal = els.rainChk.checked ? 'SIM' : '';                          // NOVO
-    var gpsFlag = (window.__EVIDENTE_MOCK === true) ? 'FAKE GPS' : '';        // NOVO
+    var chuvaVal = els.rainChk.checked ? 'SIM' : '';                 // coluna J
+    var gpsFlag = (window.__EVIDENTE_MOCK === true) ? 'FAKE GPS' : ''; // coluna K
 
     showSending(true);
     setStatus('Preparando registro…');
@@ -377,29 +417,26 @@ els.save.onclick = function () {
       cod_atividade: currentCode,
       atividade: currentActivity,
       obs: obs,
-      chuva: chuvaVal,               // NOVO -> coluna J
-      gps_flag: gpsFlag,             // NOVO -> coluna K
-      lat: (fixLat!=null?fixLat:''),
-      long: (fixLng!=null?fixLng:''),
-      accuracy_m: (fixAcc!=null?fixAcc:''),
+      chuva: chuvaVal,
+      gps_flag: gpsFlag,
+      lat: (fixLat!=null?fixLat:''), long: (fixLng!=null?fixLng:''), accuracy_m: (fixAcc!=null?fixAcc:''),
       foto_base64: dataURL,
       created_at: Date.now(),
       WEBAPP_URL: WEBAPP_URL
     };
 
-    // Se tiver fila offline (queue.js):
     if (window.EvidenteQueue && window.EvidenteQueue.queueOrSendNow) {
       window.EvidenteQueue.queueOrSendNow(item, {
         onSent: function(){
           setStatus('✅ Enviado com sucesso!');
-          alert('Registro enviado!');
+          showToast('Registro enviado', 'ok');
           resetAll();
           window.scrollTo({top:0, behavior:'smooth'});
           showSending(false);
         },
         onQueued: function(){
           setStatus('📦 Sem internet: registro salvo. Será enviado automaticamente quando a conexão voltar.');
-          alert('Sem internet: registro salvo; enviaremos assim que reconectar.');
+          showToast('Sem internet: registro salvo', 'ok');
           resetAll();
           window.scrollTo({top:0, behavior:'smooth'});
           showSending(false);
@@ -425,22 +462,27 @@ els.save.onclick = function () {
         cod_atividade: currentCode, atividade: currentActivity,
         foto: up.foto_url || '', foto_id: up.foto_id || '',
         lat: item.lat, long: item.long, obs: obs,
-        chuva: chuvaVal, gps_flag: gpsFlag         // NOVO
+        chuva: chuvaVal, gps_flag: gpsFlag
       }, function(grava){
         if(!grava || grava.status!=='OK'){ throwSend('Falha ao gravar a linha'); return; }
-        setStatus('✅ Enviado com sucesso!'); alert('Registro enviado!');
+        setStatus('✅ Enviado com sucesso!');
+        showToast('Registro enviado', 'ok');
         resetAll(); window.scrollTo({top:0, behavior:'smooth'}); showSending(false);
       }, function(e2){ throwSend(e2); });
     }, function(e1){ throwSend(e1); });
 
   }catch(err){
     setStatus('❌ '+err);
-    alert('Erro: '+err);
+    showToast('Erro: '+err, 'err');
     showSending(false);
   }
 };
 
-function throwSend(msg){ setStatus('❌ '+msg); alert('Erro: '+msg); showSending(false); }
+function throwSend(msg){
+  setStatus('❌ '+msg);
+  showToast('Erro: '+msg, 'err');
+  showSending(false);
+}
 
 /* helpers */
 function setStatus(t){ els.status.textContent=t; }
