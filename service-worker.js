@@ -10,6 +10,7 @@ const PRECACHE_URLS = [
   BASE + 'primeiro_acesso.html',
   BASE + 'seletor_lotes.html',
   BASE + 'profeta_diario_lote08.html',
+  BASE + 'dashboard.html',
   BASE + 'offline.html',
   BASE + 'manifest.webmanifest',
   BASE + 'queue.js',                   // fila offline
