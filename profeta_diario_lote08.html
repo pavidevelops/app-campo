@@ -1,366 +1,172 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
-  <!-- viewport com safe-area para Android/iOS -->
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
-  <title>Evidente • Lote 08</title>
+  <meta charset="UTF-8">
+  <title>Evidente - L08</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    :root{
-      --primary:#5A8DEE;--primary-600:#4B7CE0;--success:#10B981;--danger:#EF4444;--warn:#F59E0B;--text:#0F172A;--muted:#64748B;--bg:#EEF5FF;--card:#fff;--border:#DBE6FF;
-    }
-    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;background:var(--bg);color:var(--text)}
-    /* mais respiro no fundo para não esconder botões/“enviado” atrás do nav bar do Android */
-    .container{max-width:900px;margin:0 auto;padding:16px; padding-bottom:calc(140px + env(safe-area-inset-bottom, 0px));}
-    header{background:linear-gradient(135deg,var(--primary),var(--primary-600));color:#fff;border-radius:12px;padding:16px 14px;margin-bottom:16px;box-shadow:0 6px 18px rgba(0,0,0,0.08)}
-    h1{margin:0 0 4px;font-size:20px}
-    .subtitle{opacity:.9;font-size:14px}
-    .search-container{padding:10px 0}
-    #search{width:100%;padding:12px 14px;border:1px solid var(--border);border-radius:999px;background:#fff;font-size:16px;outline:none}
-    #search:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(90,141,238,.2)}
-    .buttons-container{display:grid;grid-template-columns:1fr;gap:8px;margin-top:8px}
-    .activity-btn{background:#fff;border:1px solid var(--border);border-radius:10px;padding:12px 14px;text-align:left;cursor:pointer;transition:.15s;box-shadow:0 2px 6px rgba(0,0,0,.04)}
-    .activity-btn strong{color:var(--primary)}
-    .activity-btn:active{transform:scale(.98);background:#F4F8FF}
-    .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-top:14px;box-shadow:0 6px 18px rgba(0,0,0,0.06)}
-    .section-title{margin:0 0 10px;font-weight:700; display:flex; align-items:center; gap:12px}
-    .chk{display:inline-flex; align-items:center; gap:8px; font-weight:600; color:var(--text)}
-    .chk input{ width:18px; height:18px; }
-    #camera{width:100%;background:#0b1220;border-radius:10px}
-    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-    .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
-    button{padding:12px;border:0;border-radius:10px;font-weight:700;cursor:pointer}
-    .btn-ok{background:var(--success);color:#fff}
-    .btn-secondary{background:#94A3B8;color:#fff}
-    .btn-danger{background:var(--danger);color:#fff}
-    #photoCanvas{max-width:100%;border:1px solid var(--border);border-radius:10px;display:block;margin:0 auto}
-    textarea{width:100%;min-height:110px;border:1px solid var(--border);border-radius:10px;padding:12px;font-size:15px}
-    .muted{color:var(--muted);font-size:13px}
-    .hidden{display:none!important}
-    .sending{position:fixed; inset:0; background:rgba(255,255,255,.85); display:flex; align-items:center; justify-content:center; z-index:9999;}
-    .sending img{ width:min(240px,50vw); height:auto; display:block; }
-
-    /* Toast acima do safe-area para não cobrir botões/textos */
-    .toast {
-      position: fixed;
-      left: 50%;
-      bottom: calc(18px + env(safe-area-inset-bottom, 0px));
-      transform: translateX(-50%) translateY(10px);
-      background: #0f172a;
-      color: #fff;
-      padding: 12px 16px;
-      border-radius: 10px;
-      box-shadow: 0 8px 20px rgba(0,0,0,.25);
-      font-size: 15px;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity .25s, transform .25s;
-      z-index: 100000;
-    }
-    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-    .toast.ok  { background: #10b981; }  /* verde */
-    .toast.err { background: #ef4444; }  /* vermelho */
-
-    /* evita colunas apertadas em telas menores (não mexe no desktop) */
-    @media (max-width:520px){.grid2,.grid3{grid-template-columns:1fr}}
-    /* folga estrutural extra perto do rodapé (mesmo sem teclado aberto) */
-    .safe-bottom{ height: calc(80px + env(safe-area-inset-bottom, 0px)); }
+    body { font-family: sans-serif; margin:0; padding:0; }
+    header { background:#004d40; color:#fff; padding:10px; text-align:center; }
+    .wrap { padding:10px; }
+    .search-wrap { margin-bottom:10px; }
+    .list { display:block; }
+    .list button { display:block; width:100%; margin-bottom:6px; padding:10px; font-size:16px; }
+    .hidden { display:none; }
+    textarea { width:100%; height:60px; margin-top:10px; }
+    .actions { margin-top:20px; }
+    .actions button { width:100%; padding:12px; font-size:16px; margin-top:6px; }
+    #preview { margin-top:20px; text-align:center; }
+    #preview img { max-width:100%; border:1px solid #ccc; }
+    #status { margin-top:10px; }
+    .toast { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:#333; color:#fff; padding:10px 20px; border-radius:4px; display:none; }
   </style>
 </head>
 <body>
-<div class="container">
   <header>
-    <h1>Evidente — Lote 08</h1>
-    <div class="subtitle">Selecione a atividade, capture a foto e envie para a planilha</div>
+    <h1>Evidente - L08</h1>
   </header>
+  <div class="wrap">
+    <div class="search-wrap" id="searchWrap">
+      <input type="text" id="search" placeholder="Buscar atividade...">
+    </div>
+    <div class="list" id="list"></div>
 
-  <div id="searchWrap" class="search-container">
-    <input id="search" placeholder="Buscar atividade..." autocomplete="off"/>
+    <textarea id="comment" placeholder="Observações"></textarea>
+
+    <div class="actions">
+      <button id="btnCapture">Abrir Câmera</button>
+      <button id="btnSend" class="hidden">Enviar</button>
+      <button id="btnCancel" class="hidden">Cancelar</button>
+    </div>
+
+    <div id="preview" class="hidden"></div>
+    <div id="status"></div>
   </div>
 
-  <div id="listWrap" class="buttons-container"></div>
+  <div id="toast" class="toast"></div>
 
-  <!-- Câmera -->
-  <section id="camera-card" class="card hidden">
-    <h2 class="section-title" id="camera-title">Câmera</h2>
-    <video id="camera" autoplay playsinline muted></video>
-    <div class="grid2" style="margin-top:10px">
-      <button id="capture" class="btn-ok">Capturar Foto</button>
-      <button id="close-camera" class="btn-danger">Fechar Câmera</button>
-    </div>
-    <div class="muted" id="gps-hint" style="margin-top:8px">Aguardando localização… permita o acesso ao GPS.</div>
-  </section>
+  <script>
+    const atividades = [
+      { cod: 'PODA', atividade: 'Poda' },
+      { cod: 'ROCADA', atividade: 'Roçada' },
+      { cod: 'SARJETA', atividade: 'Sarjeta' },
+      { cod: 'INSPECAO', atividade: 'Inspeção' }
+    ];
 
-  <!-- Prévia -->
-  <section id="preview-card" class="card hidden">
-    <h2 class="section-title">
-      Pré-visualização
-      <!-- checkbox de chuva -->
-      <label class="chk" title="Marque se estava chovendo no momento da foto">
-        <input type="checkbox" id="rainChk"> chuva
-      </label>
-    </h2>
-    <canvas id="photoCanvas"></canvas>
-    <div style="margin-top:12px">
-      <label class="muted">Observação (opcional)</label>
-      <textarea id="comment" placeholder="Ex.: ponto com obstrução, material recolhido, etc."></textarea>
-    </div>
-    <div class="grid3" style="margin-top:12px">
-      <button id="save" class="btn-ok">Usar / Enviar</button>
-      <button id="new-photo" class="btn-secondary">Corrigir (refazer)</button>
-      <button id="cancel" class="btn-danger">Cancelar</button>
-    </div>
-    <div class="muted" id="status" style="margin-top:10px"></div>
-  </section>
+    const els = {
+      searchWrap: document.getElementById('searchWrap'),
+      search: document.getElementById('search'),
+      list: document.getElementById('list'),
+      comment: document.getElementById('comment'),
+      btnCapture: document.getElementById('btnCapture'),
+      btnSend: document.getElementById('btnSend'),
+      btnCancel: document.getElementById('btnCancel'),
+      preview: document.getElementById('preview'),
+      status: document.getElementById('status'),
+      toast: document.getElementById('toast')
+    };
 
-  <!-- espaçador de segurança perto do rodapé -->
-  <div class="safe-bottom" aria-hidden="true"></div>
-</div>
+    let currentActivity = null;
+    let currentPhoto = null;
 
-<!-- overlay com a animação -->
-<div id="sendingOverlay" class="sending hidden" aria-hidden="true">
-  <img src="send_data.gif" alt="Enviando…"/>
-</div>
-
-<!-- Toast -->
-<div id="toast" class="toast" role="status" aria-live="polite"></div>
-
-<script>
-/* ====== CONFIG ====== */
-var WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbz-TDH_nY7ud6SzChQ4AAcFH8uadsXOkBym80zn22LaP5v8NSelNOvo9X_7swesqvqc/exec';
-var APP_VERSION = '1.0';
-var LOTE = '08';
-/* ==================== */
-
-/* Hook opcional para app nativo informar mock GPS */
-window.__EVIDENTE_MOCK = false;
-window.Evidente = window.Evidente || {};
-window.Evidente.setMockGps = function(isMock){ window.__EVIDENTE_MOCK = !!isMock; };
-
-/* lista fixa */
-var atividades = [
-  { cod:"421100", atividade:"CAIXA DE RETENÇÃO" },
-  { cod:"804300", atividade:"CAPINA MANUAL" },
-  { cod:"600420", atividade:"DESOBSTRUÇÃO DE SARJETA" },
-  { cod:"691600", atividade:"ESCAVAÇÃO MANUAL DE VALAS" },
-  { cod:"690311", atividade:"Limpeza de bueiro / conservação" },
-  { cod:"801200", atividade:"Limpeza de faixa de domínio" },
-  { cod:"600410", atividade:"Limpeza de sarjeta" },
-  { cod:"693301", atividade:"Limpeza e desobstrução de bueiros" },
-  { cod:"695059", atividade:"Limpeza e desobstrução mecanizada" },
-  { cod:"800900", atividade:"Limpeza e lava em de sinalização" },
-  { cod:"801100", atividade:"Limpeza e pintura de abrigo" },
-  { cod:"600510", atividade:"Limpeza e pintura de meio fio" },
-  { cod:"700900", atividade:"Limpeza e pintura de ponte" },
-  { cod:"610200", atividade:"Limpeza manual de valeta" },
-  { cod:"805460", atividade:"Poda de árvores" },
-  { cod:"891590", atividade:"Recomposição de defensa metálica" },
-  { cod:"650110", atividade:"Recomposiçao de sarjeta de concreto" },
-  { cod:"801000", atividade:"Recomposição de sinalização vertical" },
-  { cod:"895461", atividade:"Regularização mecânica da faixa" },
-  { cod:"895565", atividade:"Remoção de árvores da pista" },
-  { cod:"895660", atividade:"Remoção de defensa metálica" },
-  { cod:"403430", atividade:"Remoção e transporte manual" },
-  { cod:"403450", atividade:"Remoção mecanizada barreira" },
-  { cod:"890420", atividade:"Renovação manual da sinalização" },
-  { cod:"801400", atividade:"Roçada manual" },
-  { cod:"891401", atividade:"Roçada mecanizada com roçadeira" },
-  { cod:"795011", atividade:"Fornecimento e aplicação de Grout" }
-];
-
-/* refs */
-var els = {
-  searchWrap: document.getElementById('searchWrap'),
-  listWrap: document.getElementById('listWrap'),
-  search: document.getElementById('search'),
-  list: document.getElementById('listWrap'),
-  camCard: document.getElementById('camera-card'),
-  camTitle: document.getElementById('camera-title'),
-  video: document.getElementById('camera'),
-  capture: document.getElementById('capture'),
-  closeCam: document.getElementById('close-camera'),
-  gpsHint: document.getElementById('gps-hint'),
-  previewCard: document.getElementById('preview-card'),
-  canvas: document.getElementById('photoCanvas'),
-  comment: document.getElementById('comment'),
-  save: document.getElementById('save'),
-  retry: document.getElementById('new-photo'),
-  cancel: document.getElementById('cancel'),
-  status: document.getElementById('status'),
-  sendingOverlay: document.getElementById('sendingOverlay'),
-  rainChk: document.getElementById('rainChk')   // NOVO
-};
-
-/* estados */
-var stream=null, currentActivity=null, currentCode=null;
-/* leituras ao vivo */
-var currentLat=null, currentLng=null, accuracyM=null;
-/* FIX congelado no clique */
-var fixLat=null, fixLng=null, fixAcc=null;
-
-/* ----- Toast helpers ----- */
-var __toastTimer;
-function showToast(text, type) {
-  var el = document.getElementById('toast');
-  if (!el) return;
-  el.textContent = text;
-  el.className = 'toast ' + (type === 'err' ? 'err' : 'ok');
-  void el.offsetWidth; // reflow p/ reiniciar animação
-  el.classList.add('show');
-  clearTimeout(__toastTimer);
-  __toastTimer = setTimeout(function(){ el.classList.remove('show'); }, 2200);
-}
-/* ------------------------- */
-
-/* init UI */
-function init(){
-  renderList(atividades);
-  els.search.addEventListener('input', function(){
-    var t = els.search.value.toLowerCase();
-    var filtered = [];
-    for (var i=0;i<atividades.length;i++){
-      var a = atividades[i];
-      if (a.cod.toLowerCase().indexOf(t)!==-1 || a.atividade.toLowerCase().indexOf(t)!==-1){
-        filtered.push(a);
-      }
+    function renderList(items){
+      els.list.innerHTML = '';
+      items.forEach(a=>{
+        const b = document.createElement('button');
+        b.textContent = a.atividade;
+        b.onclick = ()=> selectActivity(a);
+        els.list.appendChild(b);
+      });
     }
-    renderList(filtered);
-  });
 
-  /* quando o textarea ganha foco (teclado sobe), rolamos para garantir visibilidade */
-  els.comment.addEventListener('focus', function(){
-    setTimeout(function(){ scrollToShow(els.comment, 120); }, 250);
-  });
-}
-if (document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', init); } else { init(); }
+    function selectActivity(a){
+      currentActivity = a;
+      els.searchWrap.style.display='none';
+      els.list.style.display='none';
+      els.btnCapture.classList.remove('hidden');
+    }
 
-/* lista */
-function renderList(arr){
-  els.list.innerHTML='';
-  if(!arr.length){ els.list.innerHTML='<div class="muted">Nada encontrado.</div>'; return; }
-  for (var i=0;i<arr.length;i++){
-    var a=arr[i];
-    var b=document.createElement('button');
-    b.className='activity-btn';
-    b.innerHTML='<strong>'+a.cod+'</strong> '+a.atividade;
-    (function(item){ b.onclick=function(){ openCamera(item); }; })(a);
-    els.list.appendChild(b);
-  }
-}
+    function restoreList(){
+      // mostra de novo a busca + lista
+      els.searchWrap.style.display = '';
+      els.list.style.display = '';
+      // limpa qualquer termo digitado para não “sumir” itens
+      els.search.value = '';
+      // re-renderiza todas as opções
+      renderList(atividades);
+      // sobe a tela pro topo (útil quando saiu do preview/câmera)
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
 
-/* util: rolar até um elemento com offset */
-function scrollToShow(el, offset){
-  try{
-    var rect = el.getBoundingClientRect();
-    var top = (window.pageYOffset || document.documentElement.scrollTop || 0) + rect.top - (offset||8);
-    window.scrollTo({ top: top, behavior: 'smooth' });
-  }catch(e){}
-}
-
-/* getUserMedia compat */
-function getUserMediaCompat(constraints){
-  var nav = navigator;
-  if (nav.mediaDevices && nav.mediaDevices.getUserMedia) return nav.mediaDevices.getUserMedia(constraints);
-  var gum = nav.getUserMedia || nav.webkitGetUserMedia || nav.mozGetUserMedia || nav.msGetUserMedia;
-  if (gum) return new Promise(function(res, rej){ gum.call(nav, constraints, res, rej); });
-  return Promise.reject(new Error('getUserMedia não suportado neste dispositivo'));
-}
-
-/* abre câmera */
-function openCamera(atividade){
-  currentActivity = atividade.atividade;
-  currentCode = atividade.cod;
-  els.camTitle.textContent = atividade.cod+' — '+atividade.atividade;
-
-  els.searchWrap.style.display = 'none';
-  els.list.style.display = 'none';
-
-  els.camCard.classList.remove('hidden');
-  els.previewCard.classList.add('hidden');
-  els.status.textContent='';
-
-  try { els.video.muted = true; } catch(e) {}
-
-  getUserMediaCompat({ video:{facingMode:'environment', width:{ideal:1280}, height:{ideal:720}} })
-    .then(function(s){
-      stream = s;
-      els.video.srcObject = s;
-      els.video.onloadedmetadata = function(){
-        try { var p = els.video.play(); if (p && p.catch) p.catch(function(){}); } catch(e){}
-        scrollToShow(els.camCard, 10);
-      };
-      setTimeout(function(){ scrollToShow(els.camCard, 10); }, 300);
-    })
-    .catch(function(err){
-      showToast('Não foi possível abrir a câmera: ' + err.message, 'err');
+    function resetAll(){
+      currentActivity = null;
+      currentPhoto = null;
+      els.preview.classList.add('hidden');
+      els.preview.innerHTML='';
+      els.btnCapture.classList.add('hidden');
+      els.btnSend.classList.add('hidden');
+      els.btnCancel.classList.add('hidden');
+      els.status.textContent='';
       restoreList();
-    });
+    }
 
-  // leituras ao vivo enquanto enquadra
-  startLivePosition();
-}
+    function setStatus(msg){
+      els.status.textContent = msg;
+    }
 
-/* restaura busca + lista */
-function restoreList(){
-  els.searchWrap.style.display = '';
-  els.list.style.display = '';
-}
+    function showToast(msg){
+      els.toast.textContent = msg;
+      els.toast.style.display='block';
+      setTimeout(()=>{ els.toast.style.display='none'; },2000);
+    }
 
-/* GPS ao vivo */
-function startLivePosition(){
-  if(!('geolocation' in navigator)){
-    els.gpsHint.textContent='GPS indisponível neste dispositivo.';
-    return;
-  }
-  els.gpsHint.textContent='Capturando posição…';
-  navigator.geolocation.getCurrentPosition(function(pos){
-    currentLat = pos.coords.latitude;
-    currentLng = pos.coords.longitude;
-    accuracyM = Math.round(pos.coords.accuracy||0);
-    els.gpsHint.textContent = 'LAT '+currentLat.toFixed(6)+'  LONG '+currentLng.toFixed(6)+'  (±'+(accuracyM||'?')+' m)';
-  }, function(){
-    els.gpsHint.textContent = 'Sem acesso ao GPS (permita a localização para registrar LAT/LONG).';
-  }, {enableHighAccuracy:true, timeout:8000, maximumAge:0});
-}
+    async function openCamera(){
+      setStatus('Abrindo câmera...');
+      // simulação de foto
+      currentPhoto = 'https://via.placeholder.com/400x300.png?text=FOTO';
+      els.preview.innerHTML = '<img src="'+currentPhoto+'">';
+      els.preview.classList.remove('hidden');
+      els.btnSend.classList.remove('hidden');
+      els.btnCancel.classList.remove('hidden');
+      els.btnCapture.classList.add('hidden');
+      setStatus('Foto capturada');
+    }
 
-/* tenta um fix fresco */
-function getFreshFix(targetAcc, maxWaitMs){
-  targetAcc = targetAcc || 25;
-  maxWaitMs = maxWaitMs || 8000;
+    async function send(){
+      if(!currentActivity || !currentPhoto){
+        showToast('Atividade ou foto ausente');
+        return;
+      }
+      setStatus('Enviando...');
+      await new Promise(r=>setTimeout(r,1000));
+      setStatus('✅ Enviado com sucesso!');
+      showToast('Registro enviado');
+      resetAll();
+      window.scrollTo({top:0, behavior:'smooth'});
+    }
 
-  return new Promise(function(resolve, reject){
-    if(!('geolocation' in navigator)) return reject(new Error('GPS indisponível'));
+    function init(){
+      renderList(atividades);
+      els.search.value = '';   // limpa o campo logo no início
+      els.search.addEventListener('input', function(){
+        const t = els.search.value.toLowerCase();
+        const filtered = atividades.filter(a =>
+          a.cod.toLowerCase().includes(t) ||
+          a.atividade.toLowerCase().includes(t)
+        );
+        renderList(filtered);
+      });
 
-    var best = null, cleared = false;
-    function clearAll(){ if(cleared) return; cleared=true; try{ navigator.geolocation.clearWatch(wid); }catch(e){} clearTimeout(tid); }
-    function better(a,b){ if(!a) return b; if(!a.coords.accuracy) return b; if(!b.coords.accuracy) return a; return (b.coords.accuracy <= a.coords.accuracy) ? b : a; }
+      els.comment.addEventListener('focus', function(){
+        setTimeout(()=>{ window.scrollTo({top:els.comment.offsetTop-120, behavior:'smooth'}); },250);
+      });
 
-    var wid = navigator.geolocation.watchPosition(function(pos){
-      best = better(best, pos);
-      var acc = Math.round(pos.coords.accuracy||0);
-      els.gpsHint.textContent = 'Precisão '+acc+' m — fixando localização…';
-      if (acc && acc <= targetAcc){ clearAll(); resolve(best); }
-    }, function(_){ /* ignora */ }, {enableHighAccuracy:true, maximumAge:0});
+      els.btnCapture.onclick = openCamera;
+      els.btnSend.onclick = send;
+      els.btnCancel.onclick = resetAll;
+    }
 
-    var tid = setTimeout(function(){
-      clearAll();
-      if (best) return resolve(best);
-      navigator.geolocation.getCurrentPosition(function(pos){ resolve(pos); }, function(e){ reject(e); }, {enableHighAccuracy:true, timeout:8000, maximumAge:0});
-    }, maxWaitMs);
-  });
-}
-
-/* CAPTURAR com fix fresco */
-els.capture.onclick = function(){
-  if(!stream){ showToast('Abra a câmera primeiro.', 'err'); return; }
-  els.capture.disabled = true;
-  els.capture.textContent = 'Aguarde, capturando imagens...';
-  els.gpsHint.textContent = 'Buscando coordenadas precisas…';
-
-  getFreshFix(25, 8000)
-    .then(function(pos){
-      fixLat = pos.coords.latitude;
-      fixLng = pos.coords.longitude;
-      fixAcc = Math.round(pos.coords.accuracy||0);
-      els.gpsHint.textContent = 'Fix obtido: LAT '+fixLat.toFixed(6)+'  LON
+    init();
+  </script>
+</body>
+</html>
