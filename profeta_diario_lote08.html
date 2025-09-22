@@ -1,9 +1,9 @@
-
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <!-- viewport com safe-area para Android/iOS -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
   <title>Evidente • Lote 08</title>
   <style>
     :root{
@@ -11,7 +11,8 @@
     }
     *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
     body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;background:var(--bg);color:var(--text)}
-    .container{max-width:900px;margin:0 auto;padding:16px}
+    /* mais respiro no fundo para não esconder botões/“enviado” atrás do nav bar do Android */
+    .container{max-width:900px;margin:0 auto;padding:16px; padding-bottom:calc(140px + env(safe-area-inset-bottom, 0px));}
     header{background:linear-gradient(135deg,var(--primary),var(--primary-600));color:#fff;border-radius:12px;padding:16px 14px;margin-bottom:16px;box-shadow:0 6px 18px rgba(0,0,0,0.08)}
     h1{margin:0 0 4px;font-size:20px}
     .subtitle{opacity:.9;font-size:14px}
@@ -40,11 +41,11 @@
     .sending{position:fixed; inset:0; background:rgba(255,255,255,.85); display:flex; align-items:center; justify-content:center; z-index:9999;}
     .sending img{ width:min(240px,50vw); height:auto; display:block; }
 
-    /* Toast (mensagem flutuante sem “a página diz…”) */
+    /* Toast acima do safe-area para não cobrir botões/textos */
     .toast {
       position: fixed;
       left: 50%;
-      bottom: 18px;
+      bottom: calc(18px + env(safe-area-inset-bottom, 0px));
       transform: translateX(-50%) translateY(10px);
       background: #0f172a;
       color: #fff;
@@ -61,7 +62,10 @@
     .toast.ok  { background: #10b981; }  /* verde */
     .toast.err { background: #ef4444; }  /* vermelho */
 
+    /* evita colunas apertadas em telas menores (não mexe no desktop) */
     @media (max-width:520px){.grid2,.grid3{grid-template-columns:1fr}}
+    /* folga estrutural extra perto do rodapé (mesmo sem teclado aberto) */
+    .safe-bottom{ height: calc(80px + env(safe-area-inset-bottom, 0px)); }
   </style>
 </head>
 <body>
@@ -109,6 +113,9 @@
     </div>
     <div class="muted" id="status" style="margin-top:10px"></div>
   </section>
+
+  <!-- espaçador de segurança perto do rodapé -->
+  <div class="safe-bottom" aria-hidden="true"></div>
 </div>
 
 <!-- overlay com a animação -->
@@ -219,6 +226,11 @@ function init(){
       }
     }
     renderList(filtered);
+  });
+
+  /* quando o textarea ganha foco (teclado sobe), rolamos para garantir visibilidade */
+  els.comment.addEventListener('focus', function(){
+    setTimeout(function(){ scrollToShow(els.comment, 120); }, 250);
   });
 }
 if (document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', init); } else { init(); }
@@ -351,175 +363,4 @@ els.capture.onclick = function(){
       fixLat = pos.coords.latitude;
       fixLng = pos.coords.longitude;
       fixAcc = Math.round(pos.coords.accuracy||0);
-      els.gpsHint.textContent = 'Fix obtido: LAT '+fixLat.toFixed(6)+'  LONG '+fixLng.toFixed(6)+'  (±'+fixAcc+' m)';
-    })
-    .catch(function(){
-      fixLat = currentLat; fixLng = currentLng; fixAcc = accuracyM;
-      els.gpsHint.textContent = fixLat && fixLng
-        ? 'Usando leitura atual: LAT '+fixLat.toFixed(6)+'  LONG '+fixLng.toFixed(6)+'  (±'+(fixAcc||'?')+' m)'
-        : 'Sem GPS — registrando sem coordenadas';
-    })
-    .finally(function(){
-      var w = els.video.videoWidth || 1280;
-      var h = els.video.videoHeight || 720;
-      els.canvas.width = w; els.canvas.height = h;
-      var ctx = els.canvas.getContext('2d');
-      ctx.drawImage(els.video, 0, 0, w, h);
-
-      var now = new Date(), dateStr = now.toLocaleString();
-      ctx.fillStyle='rgba(0,0,0,.35)'; ctx.fillRect(0, h-92, w, 92);
-      ctx.fillStyle='#fff'; ctx.font='bold 22px Arial';
-      ctx.fillText(currentCode+' - '+currentActivity, 16, h-60);
-      ctx.font='16px Arial';
-      var locLine = (fixLat && fixLng) ? ('LAT '+fixLat.toFixed(6)+'  LONG '+fixLng.toFixed(6)+'  (±'+(fixAcc||'?')+' m)') : 'Sem GPS';
-      ctx.fillText(dateStr+'  •  '+locLine, 16, h-28);
-
-      if(stream){ try{ stream.getTracks().forEach(function(t){ t.stop(); }); }catch(e){} stream=null; }
-      els.camCard.classList.add('hidden');
-      els.previewCard.classList.remove('hidden');
-      scrollToShow(els.previewCard, 10);
-
-      els.capture.disabled = false;
-      els.capture.textContent = 'Capturar Foto';
-    });
-};
-
-els.retry.onclick = function(){ openCamera({cod: currentCode, atividade: currentActivity}); };
-els.cancel.onclick = function(){ resetAll(); };
-els.closeCam.onclick = function(){
-  if(stream){ try{ stream.getTracks().forEach(function(t){ t.stop(); }); }catch(e){} stream=null; }
-  els.camCard.classList.add('hidden');
-  restoreList();
-  window.scrollTo({top:0, behavior:'smooth'});
-};
-
-/* Envio (fila/offline se disponível) */
-els.save.onclick = function () {
-  try{
-    if(!currentActivity || !currentCode){ showToast('Selecione uma atividade.', 'err'); return; }
-
-    var usuario = getUsuario();
-    var obs = (els.comment.value || '').trim();
-    var uuid = makeUUID();
-    var chuvaVal = els.rainChk.checked ? 'SIM' : '';                 // coluna J
-    var gpsFlag = (window.__EVIDENTE_MOCK === true) ? 'FAKE GPS' : ''; // coluna K
-
-    showSending(true);
-    setStatus('Preparando registro…');
-
-    var dataURL = els.canvas.toDataURL('image/jpeg', 0.8);
-
-    var item = {
-      submission_uuid: uuid,
-      app_version: APP_VERSION,
-      usuario: usuario,
-      lote: LOTE,
-      cod_atividade: currentCode,
-      atividade: currentActivity,
-      obs: obs,
-      chuva: chuvaVal,
-      gps_flag: gpsFlag,
-      lat: (fixLat!=null?fixLat:''), long: (fixLng!=null?fixLng:''), accuracy_m: (fixAcc!=null?fixAcc:''),
-      foto_base64: dataURL,
-      created_at: Date.now(),
-      WEBAPP_URL: WEBAPP_URL
-    };
-
-    if (window.EvidenteQueue && window.EvidenteQueue.queueOrSendNow) {
-      window.EvidenteQueue.queueOrSendNow(item, {
-        onSent: function(){
-          setStatus('✅ Enviado com sucesso!');
-          showToast('Registro enviado', 'ok');
-          resetAll();
-          window.scrollTo({top:0, behavior:'smooth'});
-          showSending(false);
-        },
-        onQueued: function(){
-          setStatus('📦 Sem internet: registro salvo. Será enviado automaticamente quando a conexão voltar.');
-          showToast('Sem internet: registro salvo', 'ok');
-          resetAll();
-          window.scrollTo({top:0, behavior:'smooth'});
-          showSending(false);
-        }
-      });
-      return;
-    }
-
-    // (fallback) sem fila: envio direto
-    postFormXHR(WEBAPP_URL, {
-      action:'upload_foto',
-      usuario:usuario, lote: LOTE,
-      cod_atividade: currentCode, atividade: currentActivity,
-      app_version: APP_VERSION, submission_uuid: uuid,
-      lat: item.lat, long: item.long, accuracy_m: item.accuracy_m,
-      foto_base64: dataURL
-    }, function(up){
-      if(!up || up.status!=='OK'){ throwSend('Falha no upload da foto'); return; }
-      setStatus('Enviando dados…');
-      postFormXHR(WEBAPP_URL, {
-        action:'gravar_linha_lt08',
-        app_version: APP_VERSION, usuario: usuario,
-        cod_atividade: currentCode, atividade: currentActivity,
-        foto: up.foto_url || '', foto_id: up.foto_id || '',
-        lat: item.lat, long: item.long, obs: obs,
-        chuva: chuvaVal, gps_flag: gpsFlag
-      }, function(grava){
-        if(!grava || grava.status!=='OK'){ throwSend('Falha ao gravar a linha'); return; }
-        setStatus('✅ Enviado com sucesso!');
-        showToast('Registro enviado', 'ok');
-        resetAll(); window.scrollTo({top:0, behavior:'smooth'}); showSending(false);
-      }, function(e2){ throwSend(e2); });
-    }, function(e1){ throwSend(e1); });
-
-  }catch(err){
-    setStatus('❌ '+err);
-    showToast('Erro: '+err, 'err');
-    showSending(false);
-  }
-};
-
-function throwSend(msg){
-  setStatus('❌ '+msg);
-  showToast('Erro: '+msg, 'err');
-  showSending(false);
-}
-
-/* helpers */
-function setStatus(t){ els.status.textContent=t; }
-function showSending(on){ els.sendingOverlay.classList.toggle('hidden', !on); }
-function getUsuario(){ return localStorage.getItem('nome')||localStorage.getItem('usuario_nome')||localStorage.getItem('usuario')||'Usuário'; }
-function makeUUID(){ return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,function(c){var r=Math.random()*16|0,v=c==='x'?r:(r&0x3|0x8);return v.toString(16);}); }
-
-function encodeForm(data){ var p=[],k; for(k in data){ if(data.hasOwnProperty(k)){ p.push(encodeURIComponent(k)+'='+encodeURIComponent(data[k])); } } return p.join('&'); }
-function postFormXHR(url, data, ok, err){
-  try{
-    var xhr=new XMLHttpRequest(); xhr.open('POST', url, true);
-    xhr.setRequestHeader('Content-Type','application/x-www-form-urlencoded');
-    xhr.onreadystatechange=function(){
-      if(xhr.readyState===4){
-        if(xhr.status>=200 && xhr.status<300){ try{ ok(JSON.parse(xhr.responseText)); }catch(e){ err('Resposta inválida'); } }
-        else{ err('HTTP '+xhr.status); }
-      }
-    };
-    xhr.onerror=function(){ err('Falha de rede'); };
-    xhr.send(encodeForm(data));
-  }catch(e){ err(String(e)); }
-}
-
-function resetAll(){
-  if(stream){ try{ stream.getTracks().forEach(function(t){ t.stop(); }); }catch(e){} stream=null; }
-  currentActivity=null; currentCode=null;
-  currentLat=null; currentLng=null; accuracyM=null;
-  fixLat=null; fixLng=null; fixAcc=null;
-  els.rainChk.checked = false;
-  els.comment.value='';
-  els.camCard.classList.add('hidden');
-  els.previewCard.classList.add('hidden');
-  restoreList();
-}
-</script>
-
-<!-- Fila offline (se estiver usando) -->
-<script src="/app-campo/queue.js"></script>
-</body>
-</html>
+      els.gpsHint.textContent = 'Fix obtido: LAT '+fixLat.toFixed(6)+'  LON
