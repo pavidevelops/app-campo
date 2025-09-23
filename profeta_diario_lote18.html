@@ -41,6 +41,7 @@
     .hidden{display:none!important}
     .sending{position:fixed; inset:0; background:rgba(255,255,255,.85); display:flex; align-items:center; justify-content:center; z-index:9999;}
     .sending img{ width:min(240px,50vw); height:auto; display:block; }
+
     .toast {
       position: fixed; left: 50%;
       bottom: calc(18px + env(safe-area-inset-bottom, 0px));
@@ -53,6 +54,7 @@
     .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
     .toast.ok  { background: #10b981; }
     .toast.err { background: #ef4444; }
+
     @media (max-width:520px){.grid2,.grid3{grid-template-columns:1fr}}
     .safe-bottom{ height: calc(80px + env(safe-area-inset-bottom, 0px)); }
   </style>
@@ -448,8 +450,10 @@ els.save.onclick = function () {
     }, function(up){
       if(!up || up.status!=='OK'){ throwSend('Falha no upload da foto'); return; }
       setStatus('Enviando dados…');
+      // >>> AQUI: rota genérica + envio do lote <<<
       postFormXHR(WEBAPP_URL, {
-        action:'gravar_linha_lt08',  /* ATENÇÃO: seu backend atual usa esta rota */
+        action:'gravar_linha',   // <— NOVO
+        lote: LOTE,              // <— envia '18' (normaliza p/ L18 no backend)
         app_version: APP_VERSION, usuario: usuario,
         cod_atividade: currentCode, atividade: currentActivity,
         foto: up.foto_url || '', foto_id: up.foto_id || '',
@@ -518,3 +522,4 @@ function resetAll(){
 <script src="/app-campo/queue.js"></script>
 </body>
 </html>
+
