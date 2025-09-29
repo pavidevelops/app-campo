@@ -99,7 +99,8 @@
 
 <script>
 /* ====== CONFIG ====== */
-var WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbz-TDH_nY7ud6SzChQ4AAcFH8uadsXOkBym80zn22LaP5v8NSelNOvo9X_7swesqvqc/exec';
+/* *** Use o MESMO WebApp do Lote 08 (unificado) *** */
+var WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxLlH7_g3QdHTgFM5tV3suk8Tmjdi3iSmVa5BEg-paUra-CLuwyo9zpj1iEz1jaFF2t/exec';
 var APP_VERSION = '1.0';
 /* ==================== */
 
@@ -121,12 +122,12 @@ var APP_VERSION = '1.0';
   var h=document.getElementById('loteAtual'); if(h) h.textContent = LOTE_NOME;
 })();
 
-/* Hook para app nativo marcar fake GPS */
+/* Hook p/ marcar fake GPS via app nativo */
 window.__EVIDENTE_MOCK = false;
 window.Evidente = window.Evidente || {};
 window.Evidente.setMockGps = function(isMock){ window.__EVIDENTE_MOCK = !!isMock; };
 
-/* ATIVIDADES — Lote 18 */
+/* ATIVIDADES (Lote 18) */
 var atividades = [
   { cod:"421100", atividade:"CAIXA DE RETENÇÃO" },
   { cod:"804300", atividade:"CAPINA MANUAL" },
@@ -153,7 +154,7 @@ var atividades = [
   { cod:"403450", atividade:"Remoção mecanizada barreira" },
   { cod:"890420", atividade:"Renovação manual da sinalização horizontal ( material fornecido elo DER" },
   { cod:"801400", atividade:"Roçada manual" },
-  { cod:"795011", atividade:"Fornecimento e aplicação de Grout/Emcekrete 40 ou equivalente c/ adição de 30% de pedrisco para recuperação de pavimento de concreto armado em OAE, inclusive demolição, apicoamento, limpeza e aço" }
+  { cod:"795011", atividade:"Fornecimento e aplicação de Grout/Emcekrete 40 ou equivalente c/ adição de 30% de pedrisco..." }
 ];
 
 /* refs */
@@ -351,7 +352,7 @@ els.save.onclick = function () {
       submission_uuid: uuid,
       app_version: APP_VERSION,
       usuario: usuario,
-      lote: window.LOTE_NOME,       // <<< "Lote 18" -> Coluna L
+      lote: window.LOTE_NOME,       // "Lote 18" -> COLUNA L
       lote_cod: window.LOTE_COD,    // "L18" (opcional)
       cod_atividade: currentCode,
       atividade: currentActivity,
@@ -366,7 +367,6 @@ els.save.onclick = function () {
     };
 
     if (!navigator.onLine) {
-      // OFFLINE: usa fila se existir
       if (window.EvidenteQueue && window.EvidenteQueue.queueOrSendNow){
         window.EvidenteQueue.queueOrSendNow(item, {
           onQueued: function(){ setStatus('📦 Sem internet: registro salvo. Será enviado quando a conexão voltar.'); showToast('Sem internet: registro salvo','ok'); resetAll(); window.scrollTo({top:0,behavior:'smooth'}); showSending(false); }
@@ -378,7 +378,7 @@ els.save.onclick = function () {
       return;
     }
 
-    // ONLINE: envia DIRETO (bypassa fila p/ garantir envio do lote)
+    // ONLINE: envia direto para o WebApp unificado
     postFormXHR(WEBAPP_URL, {
       action:'upload_foto',
       usuario:usuario,
@@ -449,6 +449,6 @@ function resetAll(){
 </script>
 
 <!-- Fila offline (se estiver usando) -->
-<script src="./queue.js?v=20250929_3"></script>
+<script src="./queue.js?v=20250929_4"></script>
 </body>
 </html>
