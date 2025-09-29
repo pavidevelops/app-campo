@@ -99,27 +99,23 @@
 
 <script>
 /* ====== CONFIG ====== */
-/* *** Use o MESMO WebApp do Lote 08 (unificado) *** */
-var WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxLlH7_g3QdHTgFM5tV3suk8Tmjdi3iSmVa5BEg-paUra-CLuwyo9zpj1iEz1jaFF2t/exec';
+/* Use o MESMO WebApp do Lote 08 (hoje é este): */
+var WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxBj4HaY5AggfGoRXW8JvDAKFG_SRJ3GWyBsOVG1GIes0Yv5tup8pUGSyhSL2RFFo5f/exec';
 var APP_VERSION = '1.0';
 /* ==================== */
 
-/* Resolve LOTE_NOME/LOTE_COD do localStorage ou pelo nome do arquivo */
+/* Sempre resolve LOTE_NOME/LOTE_COD pelo nome do arquivo (não herda de outras páginas) */
 (function resolveLot(){
   function pad2(s){ s=String(s); return s.length<2?('0'+s):s; }
-  var lsNome = localStorage.getItem('EVIDENTE_LOTE_NOME');
-  var lsCod  = localStorage.getItem('EVIDENTE_LOTE_COD');
-  if (!lsNome || !lsCod){
-    var m = location.pathname.match(/lote(\d{2,3})/i);
-    var num = m ? pad2(m[1]) : '18';
-    lsNome = lsNome || ('Lote ' + num);
-    lsCod  = lsCod  || ('L' + num);
-    localStorage.setItem('EVIDENTE_LOTE_NOME', lsNome);
-    localStorage.setItem('EVIDENTE_LOTE_COD',  lsCod);
-  }
-  window.LOTE_NOME = lsNome; // "Lote 18"
-  window.LOTE_COD  = lsCod;  // "L18"
-  var h=document.getElementById('loteAtual'); if(h) h.textContent = LOTE_NOME;
+  var m = location.pathname.match(/lote(\d{2,3})/i);
+  var num = m ? pad2(m[1]) : '18';
+  var nome = 'Lote ' + num;
+  var cod  = 'L' + num;
+  localStorage.setItem('EVIDENTE_LOTE_NOME', nome);
+  localStorage.setItem('EVIDENTE_LOTE_COD',  cod);
+  window.LOTE_NOME = nome;   // "Lote 18"
+  window.LOTE_COD  = cod;    // "L18"
+  var h=document.getElementById('loteAtual'); if(h) h.textContent = nome;
 })();
 
 /* Hook p/ marcar fake GPS via app nativo */
@@ -297,9 +293,10 @@ function getFreshFix(targetAcc, maxWaitMs){
 }
 
 /* CAPTURA */
-els.capture.onclick = function(){
+document.getElementById('capture').onclick = function(){
   if(!stream){ showToast('Abra a câmera primeiro.', 'err'); return; }
-  els.capture.disabled = true; els.capture.textContent = 'Aguarde, capturando imagens...'; els.gpsHint.textContent = 'Buscando coordenadas precisas…';
+  var self = this;
+  self.disabled = true; self.textContent = 'Aguarde, capturando imagens...'; els.gpsHint.textContent = 'Buscando coordenadas precisas…';
 
   function afterFix(){
     var w = els.video.videoWidth || 1280, h = els.video.videoHeight || 720;
@@ -314,7 +311,7 @@ els.capture.onclick = function(){
     ctx.fillText(dateStr+'  •  '+locLine, 16, h-28);
     if(stream){ try{ var tr=stream.getTracks(); for(var i=0;i<tr.length;i++){ try{tr[i].stop();}catch(e){} } }catch(e){} stream=null; }
     els.camCard.classList.add('hidden'); els.previewCard.classList.remove('hidden'); scrollToShow(els.previewCard, 10);
-    els.capture.disabled = false; els.capture.textContent = 'Capturar Foto';
+    self.disabled = false; self.textContent = 'Capturar Foto';
   }
 
   getFreshFix(25, 8000).then(function(pos){
@@ -326,15 +323,15 @@ els.capture.onclick = function(){
   }).then(afterFix);
 };
 
-els.retry.onclick = function(){ openCamera({cod: currentCode, atividade: currentActivity}); };
-els.cancel.onclick = function(){ resetAll(); };
-els.closeCam.onclick = function(){
+document.getElementById('new-photo').onclick = function(){ openCamera({cod: currentCode, atividade: currentActivity}); };
+document.getElementById('cancel').onclick    = function(){ resetAll(); };
+document.getElementById('close-camera').onclick = function(){
   if(stream){ try{ var tr=stream.getTracks(); for(var i=0;i<tr.length;i++){ try{tr[i].stop();}catch(e){} } }catch(e){} stream=null; }
   els.camCard.classList.add('hidden'); restoreList(); window.scrollTo({top:0, behavior:'smooth'});
 };
 
 /* Envio */
-els.save.onclick = function () {
+document.getElementById('save').onclick = function () {
   try{
     if(!currentActivity || !currentCode){ showToast('Selecione uma atividade.', 'err'); return; }
 
@@ -378,7 +375,7 @@ els.save.onclick = function () {
       return;
     }
 
-    // ONLINE: envia direto para o WebApp unificado
+    // ONLINE
     postFormXHR(WEBAPP_URL, {
       action:'upload_foto',
       usuario:usuario,
