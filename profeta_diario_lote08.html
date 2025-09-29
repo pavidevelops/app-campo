@@ -1,332 +1,390 @@
-/**********************
- *  EVIDENTE - LOTE 08
- *  Rotas:
- *   - action=upload_foto
- *   - action=gravar_linha_lt08
- *   - action=list_sheets
- *   - action=list_acts&lots=L08,L09
- *   - action=list_rows&lots=L08,L09&start=YYYY-MM-DD&end=YYYY-MM-DD
- **********************/
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <title>Evidente • Lote 08</title>
+  <style>
+    :root{ --primary:#5A8DEE;--primary-600:#4B7CE0;--success:#10B981;--danger:#EF4444;--warn:#F59E0B;--text:#0F172A;--muted:#64748B;--bg:#EEF5FF;--card:#fff;--border:#DBE6FF; }
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;background:var(--bg);color:var(--text)}
+    .container{max-width:900px;margin:0 auto;padding:16px;padding-bottom:calc(140px + env(safe-area-inset-bottom, 0px))}
+    header{background:linear-gradient(135deg,var(--primary),var(--primary-600));color:#fff;border-radius:12px;padding:16px 14px;margin-bottom:16px;box-shadow:0 6px 18px rgba(0,0,0,0.08)}
+    h1{margin:0 0 4px;font-size:20px}
+    .subtitle{opacity:.9;font-size:14px}
+    .search-container{padding:10px 0}
+    #search{width:100%;padding:12px 14px;border:1px solid var(--border);border-radius:999px;background:#fff;font-size:16px;outline:none}
+    #search:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(90,141,238,.2)}
+    .buttons-container{display:grid;grid-template-columns:1fr;gap:8px;margin-top:8px}
+    .activity-btn{background:#fff;border:1px solid var(--border);border-radius:10px;padding:12px 14px;text-align:left;cursor:pointer;transition:.15s;box-shadow:0 2px 6px rgba(0,0,0,.04)}
+    .activity-btn strong{color:var(--primary)}
+    .activity-btn:active{transform:scale(.98);background:#F4F8FF}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-top:14px;box-shadow:0 6px 18px rgba(0,0,0,0.06)}
+    .section-title{margin:0 0 10px;font-weight:700;display:flex;align-items:center;gap:12px}
+    .chk{display:inline-flex;align-items:center;gap:8px;font-weight:600;color:var(--text)}
+    .chk input{width:18px;height:18px}
+    #camera{width:100%;background:#0b1220;border-radius:10px}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+    button{padding:12px;border:0;border-radius:10px;font-weight:700;cursor:pointer}
+    .btn-ok{background:var(--success);color:#fff}
+    .btn-secondary{background:#94A3B8;color:#fff}
+    .btn-danger{background:var(--danger);color:#fff}
+    #photoCanvas{max-width:100%;border:1px solid var(--border);border-radius:10px;display:block;margin:0 auto}
+    textarea{width:100%;min-height:110px;border:1px solid var(--border);border-radius:10px;padding:12px;font-size:15px}
+    .muted{color:var(--muted);font-size:13px}
+    .hidden{display:none!important}
+    .sending{position:fixed;inset:0;background:rgba(255,255,255,.85);display:flex;align-items:center;justify-content:center;z-index:9999}
+    .sending img{width:min(240px,50vw);height:auto;display:block}
+    .toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom, 0px));transform:translateX(-50% ) translateY(10px);background:#0f172a;color:#fff;padding:12px 16px;border-radius:10px;box-shadow:0 8px 20px rgba(0,0,0,.25);font-size:15px;opacity:0;pointer-events:none;transition:opacity .25s, transform .25s;z-index:100000}
+    .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+    .toast.ok{background:#10b981}
+    .toast.err{background:#ef4444}
+    @media (max-width:520px){.grid2,.grid3{grid-template-columns:1fr}}
+    .safe-bottom{height:calc(80px + env(safe-area-inset-bottom, 0px))}
+  </style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>Evidente — <span id="loteAtual">Lote 08</span></h1>
+    <div class="subtitle">Selecione a atividade, capture a foto e envie para a planilha</div>
+  </header>
 
-// ===== CONFIG =====
-const LOTE08_SPREADSHEET_ID = '1jBidnqj8xsycCDbfuITaCuQx-TztxsItoWADXtggmMg';
-// Se sua aba consolidada se chama "lt_08", deixe assim. Se for outro nome, troque aqui:
-const LOTE08_SHEET_NAME     = 'lt_08';
+  <div id="searchWrap" class="search-container">
+    <input id="search" placeholder="Buscar atividade..." autocomplete="off"/>
+  </div>
 
-const LOTE08_DRIVE_FOLDER_ID = '1-RKLrt2mVzZw7A9LpGSVwAv1NfnHyKbO';
-const SHARE_PUBLIC_LINK = true;
-const USE_IMAGE_FORMULA = true;
-const APP_VERSION_DEFAULT = '1.0';
-const FILE_NAME_TEMPLATE = '{YYYY}{MM}{DD}_{hh}{mm}{ss}_{usuario}_{uuid}.jpg';
+  <div id="listWrap" class="buttons-container"></div>
 
-const SCRIPT_PROPS = PropertiesService.getScriptProperties();
+  <!-- Câmera -->
+  <section id="camera-card" class="card hidden">
+    <h2 class="section-title" id="camera-title">Câmera</h2>
+    <video id="camera" autoplay playsinline muted></video>
+    <div class="grid2" style="margin-top:10px">
+      <button id="capture" class="btn-ok">Capturar Foto</button>
+      <button id="close-camera" class="btn-danger">Fechar Câmera</button>
+    </div>
+    <div class="muted" id="gps-hint" style="margin-top:8px">Aguardando localização… permita o acesso ao GPS.</div>
+  </section>
 
-// ===== ROUTER =====
-function doPost(e) {
-  try {
-    if (!e || !e.postData) return json({ status: 'ERRO', mensagem: 'Sem postData' }, 400);
-    const ct = (e.postData && e.postData.type) || '';
-    let params = e.parameter || {};
-    if (ct.indexOf('application/json') > -1) { try { params = JSON.parse(e.postData.contents)||params; } catch(_){} }
-    const action = String(params.action || '').trim().toLowerCase();
-    if (!action) return json({ status: 'ERRO', mensagem: 'Parâmetro action ausente' }, 400);
-    switch (action) {
-      case 'upload_foto':       return handleUploadFoto(params);
-      case 'gravar_linha_lt08': return handleGravarLinhaLT08(params);
-      default: return json({ status: 'ERRO', mensagem: 'Ação inválida: ' + action }, 400);
-    }
-  } catch (err) { return json({ status: 'ERRO', mensagem: String(err) }, 500); }
-}
+  <!-- Prévia -->
+  <section id="preview-card" class="card hidden">
+    <h2 class="section-title">
+      Pré-visualização
+      <label class="chk"><input type="checkbox" id="rainChk"> chuva</label>
+    </h2>
+    <canvas id="photoCanvas"></canvas>
+    <div style="margin-top:12px">
+      <label class="muted">Observação (opcional)</label>
+      <textarea id="comment" placeholder="Ex.: ponto com obstrução, material recolhido, etc."></textarea>
+    </div>
+    <div class="grid3" style="margin-top:12px">
+      <button id="save" class="btn-ok">Usar / Enviar</button>
+      <button id="new-photo" class="btn-secondary">Corrigir (refazer)</button>
+      <button id="cancel" class="btn-danger">Cancelar</button>
+    </div>
+    <div class="muted" id="status" style="margin-top:10px"></div>
+  </section>
 
-function doGet(e) {
-  const p = (e && e.parameter) || {};
-  const action = String(p.action || '').toLowerCase().trim();
-  try {
-    if (!action) return json({ status: 'OK', mensagem: 'Evidente Lote 08 WebApp ativo' }, 200);
-    if (action === 'list_sheets') { return json({ status: 'OK', sheets: listSheets_() }, 200); }
-    if (action === 'list_acts')   { return json({ status: 'OK', acts: listActs_(String(p.lots||'')) }, 200); }
-    if (action === 'list_rows')   {
-      const lotsStr  = String(p.lots || '');
-      const startISO = String(p.start||'');
-      const endISO   = String(p.end  ||'');
-      return json({ status: 'OK', rows: listRows_(lotsStr, startISO, endISO) }, 200);
-    }
-    return json({ status: 'ERRO', mensagem: 'Ação inválida: ' + action }, 400);
-  } catch (err) { return json({ status: 'ERRO', mensagem: String(err) }, 500); }
-}
+  <div class="safe-bottom" aria-hidden="true"></div>
+</div>
 
-// ===== HANDLERS =====
-function handleUploadFoto(params) {
-  const usuario = (params.usuario || '').trim();
-  const codAtv  = (params.cod_atividade || '').trim();
-  const atvNome = (params.atividade || '').trim();
-  const uuid    = (params.submission_uuid || '').trim();
-  let appVersion = (params.app_version || APP_VERSION_DEFAULT).trim();
-  let fotoBase64 = (params.foto_base64 || '').trim();
+<div id="sendingOverlay" class="sending hidden" aria-hidden="true">
+  <img src="send_data.gif" alt="Enviando…"/>
+</div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  if (!fotoBase64) return json({ status: 'ERRO', mensagem: 'foto_base64 ausente' }, 400);
-  if (!usuario)    return json({ status: 'ERRO', mensagem: 'usuario ausente' }, 400);
-  if (!codAtv)     return json({ status: 'ERRO', mensagem: 'cod_atividade ausente' }, 400);
-  if (!atvNome)    return json({ status: 'ERRO', mensagem: 'atividade ausente' }, 400);
-  if (!uuid)       return json({ status: 'ERRO', mensagem: 'submission_uuid ausente' }, 400);
+<script>
+/* ====== CONFIG ====== */
+var WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxLlH7_g3QdHTgFM5tV3suk8Tmjdi3iSmVa5BEg-paUra-CLuwyo9zpj1iEz1jaFF2t/exec';
+var APP_VERSION = '1.0';
+/* ==================== */
 
-  const photoKey = 'PHOTO_' + uuid;
-  const existingFileId = SCRIPT_PROPS.getProperty(photoKey);
-  if (existingFileId) {
-    const fotoUrl = SHARE_PUBLIC_LINK ? ('https://drive.google.com/uc?export=view&id=' + existingFileId)
-                                      : ('https://drive.google.com/file/d/' + existingFileId + '/view');
-    return json({ status: 'OK', foto_url: fotoUrl, foto_id: existingFileId, file_name: '(existing)' }, 200);
+/* Resolve LOTE_NOME/LOTE_COD do localStorage ou pelo nome do arquivo */
+(function resolveLot(){
+  function pad2(n){ return String(n).padStart(2,'0'); }
+  var lsNome = localStorage.getItem('EVIDENTE_LOTE_NOME');
+  var lsCod  = localStorage.getItem('EVIDENTE_LOTE_COD');
+  if (!lsNome || !lsCod){
+    var m = location.pathname.match(/lote(\d{2,3})/i);
+    var num = m ? pad2(m[1]) : '08';
+    lsNome = lsNome || ('Lote ' + num);
+    lsCod  = lsCod  || ('L' + num);
+    localStorage.setItem('EVIDENTE_LOTE_NOME', lsNome);
+    localStorage.setItem('EVIDENTE_LOTE_COD',  lsCod);
   }
+  window.LOTE_NOME = lsNome; // "Lote 08"
+  window.LOTE_COD  = lsCod;  // "L08"
+  document.getElementById('loteAtual').textContent = LOTE_NOME;
+})();
 
-  const idx = fotoBase64.indexOf('base64,');
-  if (idx !== -1) fotoBase64 = fotoBase64.substring(idx + 'base64,'.length);
+/* Hook opcional para WebView marcar fake GPS */
+window.__EVIDENTE_MOCK = false;
+window.Evidente = window.Evidente || {};
+window.Evidente.setMockGps = function(isMock){ window.__EVIDENTE_MOCK = !!isMock; };
 
-  let bytes;
-  try { bytes = Utilities.base64Decode(fotoBase64); }
-  catch (e) { return json({ status: 'ERRO', mensagem: 'base64 inválido' }, 400); }
+/* atividades (fixas) */
+var atividades = [
+  { cod:"421100", atividade:"CAIXA DE RETENÇÃO" },
+  { cod:"804300", atividade:"CAPINA MANUAL" },
+  { cod:"600420", atividade:"DESOBSTRUÇÃO DE SARJETA" },
+  { cod:"691600", atividade:"ESCAVAÇÃO MANUAL DE VALAS" },
+  { cod:"690311", atividade:"Limpeza de bueiro / conservação" },
+  { cod:"801200", atividade:"Limpeza de faixa de domínio" },
+  { cod:"600410", atividade:"Limpeza de sarjeta" },
+  { cod:"693301", atividade:"Limpeza e desobstrução de bueiros" },
+  { cod:"695059", atividade:"Limpeza e desobstrução mecanizada" },
+  { cod:"800900", atividade:"Limpeza e lava em de sinalização" },
+  { cod:"801100", atividade:"Limpeza e pintura de abrigo" },
+  { cod:"600510", atividade:"Limpeza e pintura de meio fio" },
+  { cod:"700900", atividade:"Limpeza e pintura de ponte" },
+  { cod:"610200", atividade:"Limpeza manual de valeta" },
+  { cod:"805460", atividade:"Poda de árvores" },
+  { cod:"891590", atividade:"Recomposição de defensa metálica" },
+  { cod:"650110", atividade:"Recomposiçao de sarjeta de concreto" },
+  { cod:"801000", atividade:"Recomposição de sinalização vertical" },
+  { cod:"895461", atividade:"Regularização mecânica da faixa" },
+  { cod:"895565", atividade:"Remoção de árvores da pista" },
+  { cod:"895660", atividade:"Remoção de defensa metálica" },
+  { cod:"403430", atividade:"Remoção e transporte manual" },
+  { cod:"403450", atividade:"Remoção mecanizada barreira" },
+  { cod:"890420", atividade:"Renovação manual da sinalização" },
+  { cod:"801400", atividade:"Roçada manual" },
+  { cod:"891401", atividade:"Roçada mecanizada com roçadeira" },
+  { cod:"795011", atividade:"Fornecimento e aplicação de Grout" }
+];
 
-  const now = new Date();
-  const safeUsuario = sanitizeForFilename(usuario);
-  const fileName = formatFileName(FILE_NAME_TEMPLATE, now, safeUsuario, uuid);
+/* refs e estados */
+var els = {
+  searchWrap: document.getElementById('searchWrap'),
+  listWrap: document.getElementById('listWrap'),
+  search: document.getElementById('search'),
+  list: document.getElementById('listWrap'),
+  camCard: document.getElementById('camera-card'),
+  camTitle: document.getElementById('camera-title'),
+  video: document.getElementById('camera'),
+  capture: document.getElementById('capture'),
+  closeCam: document.getElementById('close-camera'),
+  gpsHint: document.getElementById('gps-hint'),
+  previewCard: document.getElementById('preview-card'),
+  canvas: document.getElementById('photoCanvas'),
+  comment: document.getElementById('comment'),
+  save: document.getElementById('save'),
+  retry: document.getElementById('new-photo'),
+  cancel: document.getElementById('cancel'),
+  status: document.getElementById('status'),
+  sendingOverlay: document.getElementById('sendingOverlay'),
+  rainChk: document.getElementById('rainChk')
+};
+var stream=null, currentActivity=null, currentCode=null;
+var currentLat=null, currentLng=null, accuracyM=null;
+var fixLat=null, fixLng=null, fixAcc=null;
 
-  const root = DriveApp.getFolderById(LOTE08_DRIVE_FOLDER_ID);
-  const yFolder = getOrCreateSubfolder(root, Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyy'));
-  const mFolder = getOrCreateSubfolder(yFolder, Utilities.formatDate(now, Session.getScriptTimeZone(), 'MM'));
-  const dFolder = getOrCreateSubfolder(mFolder, Utilities.formatDate(now, Session.getScriptTimeZone(), 'dd'));
+/* UI */
+function showToast(text, type) {
+  var el = document.getElementById('toast'); if (!el) return;
+  el.textContent = text; el.className = 'toast ' + (type === 'err' ? 'err' : 'ok');
+  void el.offsetWidth; el.classList.add('show');
+  setTimeout(function(){ el.classList.remove('show'); }, 2200);
+}
+function init(){
+  renderList(atividades);
+  els.search.value = '';
+  els.search.addEventListener('input', function(){
+    var t = els.search.value.toLowerCase();
+    renderList(atividades.filter(a => a.cod.toLowerCase().includes(t) || a.atividade.toLowerCase().includes(t)));
+  });
+}
+if (document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', init); } else { init(); }
 
-  const blob = Utilities.newBlob(bytes, 'image/jpeg', fileName);
-  const file = dFolder.createFile(blob);
-  if (SHARE_PUBLIC_LINK) file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-
-  const fileId = file.getId();
-  const fotoUrl = SHARE_PUBLIC_LINK ? ('https://drive.google.com/uc?export=view&id=' + fileId)
-                                    : ('https://drive.google.com/file/d/' + fileId + '/view');
-
-  SCRIPT_PROPS.setProperty(photoKey, fileId);
-  return json({ status: 'OK', foto_url: fotoUrl, foto_id: fileId, file_name: fileName }, 200);
+function renderList(arr){
+  els.list.innerHTML=''; if(!arr.length){ els.list.innerHTML='<div class="muted">Nada encontrado.</div>'; return; }
+  arr.forEach(function(a){
+    var b=document.createElement('button'); b.className='activity-btn';
+    b.innerHTML='<strong>'+a.cod+'</strong> '+a.atividade;
+    b.onclick=function(){ openCamera(a); }; els.list.appendChild(b);
+  });
 }
 
-function handleGravarLinhaLT08(params) {
-  const ss = SpreadsheetApp.openById(LOTE08_SPREADSHEET_ID);
-  let sheet = ss.getSheetByName(LOTE08_SHEET_NAME);
-  if (!sheet) sheet = ss.insertSheet(LOTE08_SHEET_NAME);
-
-  const rowKey =
-    (params.submission_uuid && ('ROW_' + params.submission_uuid)) ||
-    (params.foto_id && ('ROW_PHOTO_' + params.foto_id)) || null;
-
-  if (rowKey) {
-    const seen = SCRIPT_PROPS.getProperty(rowKey);
-    if (seen) return json({ status: 'OK', mensagem: 'Linha já registrada (idem).' }, 200);
-  }
-
-  const ts         = parseDateOrNow(params.data_hora);
-  const appVersion = (params.app_version || APP_VERSION_DEFAULT).trim();
-  const usuario    = (params.usuario || '').trim();
-  const codAtv     = (params.cod_atividade || '').trim();
-  const atvNome    = (params.atividade || '').trim();
-  const obs        = (params.obs || '').trim();
-  const chuva      = (params.chuva || '').trim();
-  const gpsFlag    = (params.fake_gps || params.gps_flag || '').trim();
-
-  const fotoParam = (params.foto || '').trim();
-  const fotoId    = (params.foto_id || '').trim();
-  let fotoCellValue = fotoParam;
-  if (USE_IMAGE_FORMULA) {
-    if (fotoParam.startsWith('=IMAGE(')) {
-      fotoCellValue = fotoParam;
-    } else if (fotoId) {
-      fotoCellValue = '=IMAGE("https://drive.google.com/uc?export=view&id=' + fotoId + '")';
-    } else if (fotoParam) {
-      fotoCellValue = '=IMAGE("' + fotoParam.replace(/"/g, '""') + '")';
-    } else {
-      fotoCellValue = '';
-    }
-  }
-
-  const lat = toNumberOrEmpty(params.lat);
-  const lon = toNumberOrEmpty(params.long);
-
-  // Coluna L (texto), aceita "lote" (ex.: "Lote 08") ou "lote_cod" (ex.: "L08")
-  const loteFinal = (params.lote && String(params.lote).trim()) || normalizeLoteFromCode_(params.lote_cod) || '';
-
-  const row = [ ts, appVersion, usuario, codAtv, atvNome, fotoCellValue, lat, lon, obs, chuva, gpsFlag, loteFinal ];
-  sheet.appendRow(row);
-
-  if (rowKey) SCRIPT_PROPS.setProperty(rowKey, '1');
-  return json({ status: 'OK' }, 200);
+/* util */
+function scrollToShow(el, offset){
+  try{ var rect = el.getBoundingClientRect();
+    var top = (window.pageYOffset || document.documentElement.scrollTop || 0) + rect.top - (offset||8);
+    window.scrollTo({ top: top, behavior: 'smooth' }); }catch(e){}
+}
+function getUserMediaCompat(c){
+  var nav = navigator;
+  if (nav.mediaDevices && nav.mediaDevices.getUserMedia) return nav.mediaDevices.getUserMedia(c);
+  var gum = nav.getUserMedia || nav.webkitGetUserMedia || nav.mozGetUserMedia || nav.msGetUserMedia;
+  if (gum) return new Promise(function(res, rej){ gum.call(nav, c, res, rej); });
+  return Promise.reject(new Error('getUserMedia não suportado'));
 }
 
-// ===== LISTAGENS =====
-function listSheets_() {
-  const ss = SpreadsheetApp.openById(LOTE08_SPREADSHEET_ID);
-  const sh = ss.getSheetByName(LOTE08_SHEET_NAME);
-  if (sh) {
-    const last = sh.getLastRow();
-    if (last >= 2) {
-      const lots = new Set();
-      const vals = sh.getRange(2, 12, last - 1, 1).getDisplayValues(); // Coluna L
-      vals.forEach(r => {
-        const code = normalizeLotTextToCode_(String(r[0] || ''));
-        if (code) lots.add(code);
+/* câmera */
+function openCamera(atividade){
+  currentActivity = atividade.atividade; currentCode = atividade.cod;
+  els.camTitle.textContent = atividade.cod+' — '+atividade.atividade;
+  els.searchWrap.style.display = 'none'; els.list.style.display = 'none';
+  els.camCard.classList.remove('hidden'); els.previewCard.classList.add('hidden'); els.status.textContent='';
+  try { els.video.muted = true; } catch(e) {}
+
+  getUserMediaCompat({ video:{facingMode:'environment', width:{ideal:1280}, height:{ideal:720}} })
+    .then(function(s){ stream = s; els.video.srcObject = s; els.video.onloadedmetadata = function(){
+      try { var p = els.video.play(); if (p && p.catch) p.catch(function(){}); } catch(e){}
+      scrollToShow(els.camCard, 10); }; setTimeout(function(){ scrollToShow(els.camCard, 10); }, 300);
+    })
+    .catch(function(err){ showToast('Não foi possível abrir a câmera: ' + err.message, 'err'); restoreList(); });
+
+  startLivePosition();
+}
+function restoreList(){
+  els.searchWrap.style.display = ''; els.list.style.display = '';
+  els.search.value = ''; renderList(atividades); window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/* GPS */
+function startLivePosition(){
+  if(!('geolocation' in navigator)){ els.gpsHint.textContent='GPS indisponível.'; return; }
+  els.gpsHint.textContent='Capturando posição…';
+  navigator.geolocation.getCurrentPosition(function(pos){
+    currentLat = pos.coords.latitude; currentLng = pos.coords.longitude; accuracyM = Math.round(pos.coords.accuracy||0);
+    els.gpsHint.textContent = 'LAT '+currentLat.toFixed(6)+'  LONG '+currentLng.toFixed(6)+'  (±'+(accuracyM||'?')+' m)';
+  }, function(){ els.gpsHint.textContent = 'Sem acesso ao GPS (permita localização).'; }, {enableHighAccuracy:true, timeout:8000, maximumAge:0});
+}
+function getFreshFix(targetAcc, maxWaitMs){
+  targetAcc = targetAcc || 25; maxWaitMs = maxWaitMs || 8000;
+  return new Promise(function(resolve, reject){
+    if(!('geolocation' in navigator)) return reject(new Error('GPS indisponível'));
+    var best = null, cleared=false;
+    function clearAll(){ if(cleared) return; cleared=true; try{ navigator.geolocation.clearWatch(wid); }catch(e){} clearTimeout(tid); }
+    function better(a,b){ if(!a) return b; if(!a.coords.accuracy) return b; if(!b.coords.accuracy) return a; return (b.coords.accuracy <= a.coords.accuracy) ? b : a; }
+    var wid = navigator.geolocation.watchPosition(function(pos){
+      best = better(best, pos); var acc = Math.round(pos.coords.accuracy||0);
+      els.gpsHint.textContent = 'Precisão '+acc+' m — fixando localização…';
+      if (acc && acc <= targetAcc){ clearAll(); resolve(best); }
+    }, function(){}, {enableHighAccuracy:true, maximumAge:0});
+    var tid = setTimeout(function(){ clearAll();
+      if (best) return resolve(best);
+      navigator.geolocation.getCurrentPosition(function(pos){ resolve(pos); }, function(e){ reject(e); }, {enableHighAccuracy:true, timeout:8000, maximumAge:0});
+    }, maxWaitMs);
+  });
+}
+
+/* CAPTURA */
+document.getElementById('capture').onclick = function(){
+  if(!stream){ showToast('Abra a câmera primeiro.', 'err'); return; }
+  this.disabled = true; this.textContent = 'Aguarde, capturando imagens...'; els.gpsHint.textContent = 'Buscando coordenadas precisas…';
+
+  getFreshFix(25, 8000)
+    .then(function(pos){ fixLat = pos.coords.latitude; fixLng = pos.coords.longitude; fixAcc = Math.round(pos.coords.accuracy||0);
+      els.gpsHint.textContent = 'Fix obtido: LAT '+fixLat.toFixed(6)+'  LONG '+fixLng.toFixed(6)+'  (±'+fixAcc+' m)'; })
+    .catch(function(){ fixLat = currentLat; fixLng = currentLng; fixAcc = accuracyM;
+      els.gpsHint.textContent = fixLat && fixLng ? 'Usando leitura atual: LAT '+fixLat.toFixed(6)+'  LONG '+fixLng.toFixed(6)+'  (±'+(fixAcc||'?')+' m)' : 'Sem GPS — registrando sem coordenadas'; })
+    .finally(function(){
+      var w = els.video.videoWidth || 1280, h = els.video.videoHeight || 720;
+      els.canvas.width = w; els.canvas.height = h; var ctx = els.canvas.getContext('2d'); ctx.drawImage(els.video, 0, 0, w, h);
+      var now = new Date(), dateStr = now.toLocaleString();
+      ctx.fillStyle='rgba(0,0,0,.35)'; ctx.fillRect(0, h-92, w, 92);
+      ctx.fillStyle='#fff'; ctx.font='bold 22px Arial'; ctx.fillText(currentCode+' - '+currentActivity, 16, h-60);
+      ctx.font='16px Arial'; var locLine = (fixLat && fixLng) ? ('LAT '+fixLat.toFixed(6)+'  LONG '+fixLng.toFixed(6)+'  (±'+(fixAcc||'?')+' m)') : 'Sem GPS';
+      ctx.fillText(dateStr+'  •  '+locLine, 16, h-28);
+      if(stream){ try{ stream.getTracks().forEach(t=>t.stop()); }catch(e){} stream=null; }
+      els.camCard.classList.add('hidden'); els.previewCard.classList.remove('hidden'); scrollToShow(els.previewCard, 10);
+      var c = document.getElementById('capture'); c.disabled = false; c.textContent = 'Capturar Foto';
+    });
+};
+
+document.getElementById('new-photo').onclick = function(){ openCamera({cod: currentCode, atividade: currentActivity}); };
+document.getElementById('cancel').onclick    = function(){ resetAll(); };
+document.getElementById('close-camera').onclick = function(){
+  if(stream){ try{ stream.getTracks().forEach(t=>t.stop()); }catch(e){} stream=null; }
+  els.camCard.classList.add('hidden'); restoreList(); window.scrollTo({top:0, behavior:'smooth'});
+};
+
+/* Envio (fila/offline se disponível) */
+document.getElementById('save').onclick = function () {
+  try{
+    if(!currentActivity || !currentCode){ showToast('Selecione uma atividade.', 'err'); return; }
+    var usuario = localStorage.getItem('nome')||localStorage.getItem('usuario_nome')||localStorage.getItem('usuario')||'Usuário';
+    var obs = (els.comment.value || '').trim();
+    var uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,function(c){var r=Math.random()*16|0,v=c==='x'?r:(r&0x3|0x8);return v.toString(16);});
+    var chuvaVal = els.rainChk.checked ? 'SIM' : '';
+    var gpsFlag = (window.__EVIDENTE_MOCK === true) ? 'FAKE GPS' : '';
+    showSending(true); setStatus('Preparando registro…');
+    var dataURL = els.canvas.toDataURL('image/jpeg', 0.8);
+
+    var item = {
+      submission_uuid: uuid,
+      app_version: APP_VERSION,
+      usuario: usuario,
+      lote: LOTE_NOME, lote_cod: LOTE_COD,
+      cod_atividade: currentCode, atividade: currentActivity,
+      obs: obs, chuva: chuvaVal,
+      fake_gps: gpsFlag, gps_flag: gpsFlag,
+      lat: (fixLat!=null?fixLat:''), long: (fixLng!=null?fixLng:''), accuracy_m: (fixAcc!=null?fixAcc:''),
+      foto_base64: dataURL, created_at: Date.now(), WEBAPP_URL: WEBAPP_URL
+    };
+
+    if (window.EvidenteQueue && window.EvidenteQueue.queueOrSendNow) {
+      window.EvidenteQueue.queueOrSendNow(item, {
+        onSent: function(){ setStatus('✅ Enviado com sucesso!'); showToast('Registro enviado','ok'); resetAll(); window.scrollTo({top:0,behavior:'smooth'}); showSending(false); },
+        onQueued: function(){ setStatus('📦 Sem internet: registro salvo.'); showToast('Sem internet: registro salvo','ok'); resetAll(); window.scrollTo({top:0,behavior:'smooth'}); showSending(false); }
       });
-      const out = Array.from(lots);
-      if (out.length) return out.sort((a,b)=> a.localeCompare(b,'pt-BR',{numeric:true}));
+      return;
     }
-  }
-  // fallback (se quiser listar por abas antigas)
-  const out = new Set();
-  ss.getSheets().forEach(s => {
-    const norm = normalizeLot_(s.getName());
-    if (norm) out.add(norm);
-  });
-  return Array.from(out).sort((a,b)=> a.localeCompare(b,'pt-BR',{numeric:true}));
-}
 
-function listActs_(lotsStr) {
-  const ss = SpreadsheetApp.openById(LOTE08_SPREADSHEET_ID);
-  const sh = ss.getSheetByName(LOTE08_SHEET_NAME);
-  const acts = new Set();
-  if (sh) {
-    const last = sh.getLastRow(); if (last >= 2) {
-      const lotsFilter = normalizeLotsCsvToSet_(lotsStr); // 'L08','L09'...
-      const rng = sh.getRange(2, 1, last - 1, 12).getDisplayValues(); // A..L
-      for (var i = 0; i < rng.length; i++) {
-        const row = rng[i];
-        const lotCode = normalizeLotTextToCode_(String(row[11] || '')); // L
-        if (lotsFilter.size && (!lotCode || !lotsFilter.has(lotCode))) continue;
-        const atv = String(row[4] || '').trim(); // E
-        if (atv) acts.add(atv);
-      }
-    }
-    return Array.from(acts).sort((a,b)=> a.localeCompare(b,'pt-BR',{sensitivity:'base'}));
-  }
-  return []; // se não houver consolidado
-}
+    // Sem fila: envia direto (upload_foto -> gravar_linha_lt08)
+    postFormXHR(WEBAPP_URL, {
+      action:'upload_foto', usuario:usuario, lote: LOTE_NOME,
+      cod_atividade: currentCode, atividade: currentActivity,
+      app_version: APP_VERSION, submission_uuid: uuid,
+      lat: item.lat, long: item.long, accuracy_m: item.accuracy_m,
+      foto_base64: dataURL
+    }, function(up){
+      if(!up || up.status!=='OK'){ throwSend('Falha no upload da foto'); return; }
+      setStatus('Enviando dados…');
+      postFormXHR(WEBAPP_URL, {
+        action:'gravar_linha_lt08',
+        app_version: APP_VERSION, usuario: usuario,
+        cod_atividade: currentCode, atividade: currentActivity,
+        foto: up.foto_url || '', foto_id: up.foto_id || '',
+        lat: item.lat, long: item.long, obs: obs,
+        chuva: chuvaVal, fake_gps: gpsFlag,
+        lote: LOTE_NOME   // <<< vai para a COLUNA L
+      }, function(grava){
+        if(!grava || grava.status!=='OK'){ throwSend('Falha ao gravar a linha'); return; }
+        setStatus('✅ Enviado com sucesso!'); showToast('Registro enviado','ok'); resetAll(); window.scrollTo({top:0,behavior:'smooth'}); showSending(false);
+      }, function(e2){ throwSend(e2); });
+    }, function(e1){ throwSend(e1); });
 
-function listRows_(lotsStr, startISO, endISO) {
-  const tz = Session.getScriptTimeZone() || 'America/Sao_Paulo';
-  const ss = SpreadsheetApp.openById(LOTE08_SPREADSHEET_ID);
-  const sh = ss.getSheetByName(LOTE08_SHEET_NAME);
-  const out = [];
-  const start = startISO ? new Date(startISO + 'T00:00:00') : null;
-  const end   = endISO   ? new Date(endISO   + 'T23:59:59') : null;
-  const lotsFilter = normalizeLotsCsvToSet_(lotsStr);
+  }catch(err){ setStatus('❌ '+err); showToast('Erro: '+err,'err'); showSending(false); }
+};
 
-  if (sh) {
-    const last = sh.getLastRow(); if (last >= 2) {
-      const values = sh.getRange(2, 1, last - 1, 12).getValues(); // A..L
-      for (var i=0;i<values.length;i++) {
-        const r = values[i];
-        let ts = r[0]; if (!(ts instanceof Date)) ts = parsePtBrDateTime_(String(ts||'').trim());
-        if (!(ts instanceof Date) || isNaN(ts.getTime())) continue;
-        if (start && ts < start) continue; if (end && ts > end) continue;
+function setStatus(t){ els.status.textContent = t; scrollToShow(els.status, 140); }
+function showSending(on){ els.sendingOverlay.classList.toggle('hidden', !on); }
+function throwSend(msg){ setStatus('❌ '+msg); showToast('Erro: '+msg,'err'); showSending(false); }
+function postFormXHR(url, data, ok, err){
+  try{
+    var xhr=new XMLHttpRequest(); xhr.open('POST', url, true);
+    xhr.setRequestHeader('Content-Type','application/x-www-form-urlencoded');
+    xhr.onreadystatechange=function(){ if(xhr.readyState===4){
+      if(xhr.status>=200 && xhr.status<300){ try{ ok(JSON.parse(xhr.responseText)); }catch(e){ err('Resposta inválida'); } }
+      else{ err('HTTP '+xhr.status); } } };
+    xhr.onerror=function(){ err('Falha de rede'); };
+    xhr.send(Object.keys(data).map(k => encodeURIComponent(k)+'='+encodeURIComponent(data[k])).join('&'));
+  }catch(e){ err(String(e)); }
+}
+function resetAll(){
+  if(stream){ try{ stream.getTracks().forEach(t=>t.stop()); }catch(e){} stream=null; }
+  currentActivity=null; currentCode=null; currentLat=null; currentLng=null; accuracyM=null; fixLat=null; fixLng=null; fixAcc=null;
+  els.rainChk.checked = false; els.comment.value=''; els.camCard.classList.add('hidden'); els.previewCard.classList.add('hidden'); restoreList();
+}
+</script>
 
-        const lotCode = normalizeLotTextToCode_(String(r[11] || '')); // L
-        if (lotsFilter.size && (!lotCode || !lotsFilter.has(lotCode))) continue;
-
-        const atv     = r[4];  // E
-        const fotoVal = r[5];  // F
-        const chuva   = r[9];  // J
-        const gpsFlag = r[10]; // K
-
-        out.push({
-          lote: lotCode || '',
-          ts: Utilities.formatDate(ts, tz, "yyyy-MM-dd'T'HH:mm:ssXXX"),
-          atv: String(atv||''),
-          foto: extractImageUrl_(fotoVal),
-          chuva: String(chuva||''),
-          gps_flag: String(gpsFlag||'')
-        });
-      }
-    }
-    out.sort((a,b)=> a.ts.localeCompare(b.ts));
-    return out;
-  }
-  return [];
-}
-
-// ===== HELPERS =====
-function json(obj, code) {
-  const out = ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
-  if (code && out.setResponseCode) out.setResponseCode(code);
-  return out;
-}
-function getOrCreateSubfolder(parent, name) {
-  const it = parent.getFoldersByName(name);
-  if (it.hasNext()) return it.next();
-  return parent.createFolder(name);
-}
-function sanitizeForFilename(s) {
-  return s.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, '_').substring(0, 40);
-}
-function formatFileName(tpl, date, usuario, uuid) {
-  const tz = Session.getScriptTimeZone() || 'America/Sao_Paulo';
-  const y = Utilities.formatDate(date, tz, 'yyyy'), M = Utilities.formatDate(date, tz, 'MM'), d = Utilities.formatDate(date, tz, 'dd');
-  const h = Utilities.formatDate(date, tz, 'HH'), m = Utilities.formatDate(date, tz, 'mm'), s = Utilities.formatDate(date, tz, 'ss');
-  return tpl.replace('{YYYY}', y).replace('{MM}', M).replace('{DD}', d).replace('{hh}', h).replace('{mm}', m).replace('{ss}', s)
-           .replace('{usuario}', usuario).replace('{uuid}', uuid);
-}
-function toNumberOrEmpty(v) {
-  if (v === null || v === undefined) return '';
-  const n = Number(String(v).replace(',', '.'));
-  return isFinite(n) ? n : '';
-}
-function parseDateOrNow(s) {
-  if (!s) return new Date();
-  const d = new Date(String(s));
-  return isNaN(d.getTime()) ? new Date() : d;
-}
-// "lt_08", "LT-08", "08" -> "L08"
-function normalizeLot_(raw) {
-  if (!raw) return null;
-  const s = String(raw).trim().toUpperCase();
-  if (/^L\d{2}$/.test(s)) return s;
-  let m = s.match(/^LT[ _-]?(\d{2})$/); if (m) return `L${m[1]}`;
-  m = s.match(/^(\d{2})$/); if (m) return `L${m[1]}`;
-  return null;
-}
-function denormalizeLot_(L) { const m = String(L||'').toUpperCase().match(/^L(\d{2})$/); if (!m) return String(L||''); return `L${m[1]}`; }
-function parsePtBrDateTime_(s){
-  if (!s) return null;
-  const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})[ T](\d{2}):(\d{2}):(\d{2})$/);
-  if (!m) return null;
-  const dd=+m[1], MM=+m[2]-1, yyyy=+m[3], hh=+m[4], mm=+m[5], ss=+m[6];
-  const d = new Date(yyyy,MM,dd,hh,mm,ss);
-  return isNaN(d.getTime()) ? null : d;
-}
-function extractImageUrl_(val){
-  if (!val) return '';
-  const s = String(val);
-  const m = s.match(/^=IMAGE\(\s*"([^"]+)"\s*\)/i);
-  if (m) return m[1];
-  if (/^https?:\/\//i.test(s)) return s;
-  return '';
-}
-// "Lote 08" / "L08" / "08" -> "L08"
-function normalizeLotTextToCode_(val){
-  if (!val) return '';
-  const s = String(val).trim();
-  let m = s.match(/lote\s*0?(\d{1,3})/i); if (m) return 'L' + ('00' + m[1]).slice(-2);
-  m = s.trim().toUpperCase().match(/^L0?(\d{1,3})$/); if (m) return 'L' + ('00' + m[1]).slice(-2);
-  m = s.match(/^0?(\d{1,3})$/); if (m) return 'L' + ('00' + m[1]).slice(-2);
-  return '';
-}
-// "L08" -> "Lote 08"
-function normalizeLoteFromCode_(code){
-  if (!code) return '';
-  const m = String(code).toUpperCase().match(/^L0?(\d{1,3})$/);
-  if (!m) return '';
-  return 'Lote ' + ('00' + m[1]).slice(-2);
-}
-// "L08,L09" CSV -> Set{'L08','L09'}
-function normalizeLotsCsvToSet_(csv){
-  const out = new Set(); if (!csv) return out;
-  String(csv).split(',').map(s => s.trim()).filter(Boolean).forEach(s => {
-    const norm = normalizeLot_(s) || normalizeLotTextToCode_(s);
-    if (norm) out.add(norm);
-  });
-  return out;
-}
+<!-- Fila offline (se estiver usando) -->
+<script src="./queue.js"></script>
+</body>
+</html>
 
 
