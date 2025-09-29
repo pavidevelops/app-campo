@@ -108,19 +108,30 @@
     if (typeof v === 'string') {
       var s = v.trim().toLowerCase();
       if (s === 'sim' || s === 'true' || s === '1' || s === 'yes') return 'SIM';
-      // se já vier 'SIM' em maiúsculas, mantém:
       if (v === 'SIM') return 'SIM';
     }
     return v ? 'SIM' : '';
   }
 
+  function getLS(key) {
+    try { return localStorage.getItem(key) || ''; } catch (e) { return ''; }
+  }
+
   // 1 item = upload_foto -> gravar_linha_lt08
   function sendItem(item) {
-    // 1) Upload da foto
-    return postFormXHR(item.WEBAPP_URL, {
+    var baseUrl = item.WEBAPP_URL || (w && w.WEBAPP_URL);
+    if (!baseUrl) return Promise.reject(new Error('WEBAPP_URL não definido'));
+
+    // valores de lote (fallback no localStorage)
+    var loteNome = item.lote || getLS('EVIDENTE_LOTE_NOME') || '';
+    var loteCod  = item.lote_cod || getLS('EVIDENTE_LOTE_COD') || '';
+
+    // 1) Upload da foto (manter lote/lote_cod por telemetria/consistência)
+    return postFormXHR(baseUrl, {
       action: 'upload_foto',
       usuario: item.usuario,
-      lote: item.lote,
+      lote: loteNome,
+      lote_cod: loteCod,
       cod_atividade: item.cod_atividade,
       atividade: item.atividade,
       app_version: item.app_version,
@@ -132,10 +143,10 @@
     }).then(function (up) {
       if (!up || up.status !== 'OK') throw new Error((up && up.mensagem) || 'Falha no upload');
 
-      // 2) Gravar linha (inclui CHUVA e GPS_FLAG + idempotência)
-      return postFormXHR(item.WEBAPP_URL, {
+      // 2) Gravar linha (A..K + L) — **inclui lote e lote_cod**
+      return postFormXHR(baseUrl, {
         action: 'gravar_linha_lt08',
-        data_hora: new Date().toISOString(),     // opcional, servidor também preenche
+        data_hora: new Date().toISOString(),     // opcional (servidor também preenche)
         app_version: item.app_version,
         usuario: item.usuario,
         cod_atividade: item.cod_atividade,
@@ -145,9 +156,15 @@
         lat: safe(item.lat, ''),
         long: safe(item.long, ''),
         obs: item.obs || '',
-        chuva: normChuva(item.chuva),            // >>> coluna J
-        gps_flag: item.gps_flag || '',           // >>> coluna K ('FAKE GPS' ou '')
-        submission_uuid: item.submission_uuid    // ajuda a idempotência no Apps Script
+        chuva: normChuva(item.chuva),            // J
+        // Envia ambos por compatibilidade:
+        fake_gps: item.fake_gps || item.gps_flag || '',
+        gps_flag: item.gps_flag || item.fake_gps || '',  // K
+        // >>> ESSENCIAL: Coluna L
+        lote: loteNome,
+        lote_cod: loteCod,
+        // idempotência
+        submission_uuid: item.submission_uuid
       });
     }).then(function (grava) {
       if (!grava || grava.status !== 'OK') throw new Error((grava && grava.mensagem) || 'Falha ao gravar linha');
