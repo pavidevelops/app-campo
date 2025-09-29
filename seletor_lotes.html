@@ -112,41 +112,41 @@
     <h1>
 BEM VINDO SISTEMA EVIDENTE<br><br>
 Selecione o lote para atividade:</h1>
-    <p class="lead">Toque (ou clique) no lote desejado.****.</p>
+    <p class="lead">Toque (ou clique) no lote desejado.</p>
 
     <section class="grid" aria-label="Lista de lotes">
-      <!-- use o atributo data-target para guardar a URL destino quando quiser -->
-      <a href="#" class="lot-button" data-target="lote06.html" data-lote="06">
+      <!-- Botões com data-* para identificação robusta -->
+      <a href="#" class="lot-button" data-lote="06" data-lote-nome="Lote 06" data-lote-codigo="L06">
         <span class="lot-number">06</span>
         <span>Lote 06</span>
       </a>
 
-      <a href="#" class="lot-button" data-target="lote27.html" data-lote="27">
+      <a href="#" class="lot-button" data-lote="27" data-lote-nome="Lote 27" data-lote-codigo="L27">
         <span class="lot-number">27</span>
         <span>Lote 27</span><br>
       </a>
 
-      <a href="#" class="lot-button" data-target="lote28.html" data-lote="28">
+      <a href="#" class="lot-button" data-lote="28" data-lote-nome="Lote 28" data-lote-codigo="L28">
         <span class="lot-number">28</span>
         <span>Lote 28</span>
       </a>
 
-      <a href="#" class="lot-button" data-target="lote35.html" data-lote="35">
+      <a href="#" class="lot-button" data-lote="35" data-lote-nome="Lote 35" data-lote-codigo="L35">
         <span class="lot-number">35</span>
         <span>Lote 35</span>
       </a>
 
-      <a href="#" class="lot-button" data-target="lote24.html" data-lote="24">
+      <a href="#" class="lot-button" data-lote="24" data-lote-nome="Lote 24" data-lote-codigo="L24">
         <span class="lot-number">24</span>
         <span>Lote 24</span>
       </a>
 
-      <a href="#" class="lot-button" data-target="profeta_diario_lote18.html" data-lote="18">
+      <a href="#" class="lot-button" data-lote="18" data-lote-nome="Lote 18" data-lote-codigo="L18">
         <span class="lot-number">18</span>
         <span>Lote 18</span>
       </a>
 
-      <a href="#" class="lot-button" data-target="profeta_diario_lote08.html">
+      <a href="#" class="lot-button" data-lote="08" data-lote-nome="Lote 08" data-lote-codigo="L08">
         <span class="lot-number">08</span>
         <span>Lote 08</span>
       </a>
@@ -156,20 +156,41 @@ Selecione o lote para atividade:</h1>
   </main>
 
   <script>
-    // comportamento simples: navega para data-target quando definido
+    // Página única de coleta
+    const PROXIMA_PAGINA = 'profeta_diario.html';
+
     document.addEventListener('click', function(e){
       const btn = e.target.closest('.lot-button');
       if(!btn) return;
       e.preventDefault();
-      const target = btn.getAttribute('data-target');
-      const lote = btn.getAttribute('data-lote');
-      console.log('Lote selecionado:', lote, '->', target);
-      // Se quiser navegar direto, descomente a linha abaixo
-      if(target && target !== '#'){
-        window.location.href = target;
+
+      // 1) Prioriza data-atributos (mais confiável)
+      let nome = btn.getAttribute('data-lote-nome') || '';
+      let cod  = btn.getAttribute('data-lote-codigo') || '';
+      let num  = btn.getAttribute('data-lote') || '';
+
+      // 2) Se faltar, tenta extrair do texto visível
+      if(!num){
+        const fromBadge = btn.querySelector('.lot-number')?.textContent?.trim();
+        if (fromBadge) num = fromBadge;
       }
+      if(!nome && num) nome = `Lote ${String(num).padStart(2,'0')}`;
+      if(!cod && num)  cod  = `L${String(num).padStart(2,'0')}`;
+
+      if(!nome){
+        // não reconheceu, não altera o comportamento
+        return;
+      }
+
+      // Salva para a página de coleta utilizar (irá para Coluna L no GAS)
+      localStorage.setItem('EVIDENTE_LOTE_NOME', nome); // ex.: "Lote 08"
+      localStorage.setItem('EVIDENTE_LOTE_COD',  cod);  // ex.: "L08"
+
+      // Redireciona sempre para a página única
+      window.location.href = PROXIMA_PAGINA;
     });
   </script>
 
 </body>
 </html>
+
