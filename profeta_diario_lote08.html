@@ -1,24 +1,16 @@
-<!-- COLE A PARTIR DAQUI (HTML INTEIRO DO SEU ARQUIVO, COM OS AJUSTES SAFE-AREA) -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <!-- viewport agora com safe-area  -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
-  <title>Evidente • Lote 08</title>
+  <title>Evidente • Profeta Diário</title>
   <style>
     :root{
       --primary:#5A8DEE;--primary-600:#4B7CE0;--success:#10B981;--danger:#EF4444;--warn:#F59E0B;--text:#0F172A;--muted:#64748B;--bg:#EEF5FF;--card:#fff;--border:#DBE6FF;
     }
     *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
     body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;background:var(--bg);color:var(--text)}
-    /* AQUI o padding-bottom com safe-area p/ não esconder o fim da tela */
-    .container{
-      max-width:900px;
-      margin:0 auto;
-      padding:16px;
-      padding-bottom: calc(140px + env(safe-area-inset-bottom, 0px));
-    }
+    .container{max-width:900px;margin:0 auto;padding:16px;padding-bottom:calc(140px + env(safe-area-inset-bottom, 0px))}
     header{background:linear-gradient(135deg,var(--primary),var(--primary-600));color:#fff;border-radius:12px;padding:16px 14px;margin-bottom:16px;box-shadow:0 6px 18px rgba(0,0,0,0.08)}
     h1{margin:0 0 4px;font-size:20px}
     .subtitle{opacity:.9;font-size:14px}
@@ -30,9 +22,9 @@
     .activity-btn strong{color:var(--primary)}
     .activity-btn:active{transform:scale(.98);background:#F4F8FF}
     .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-top:14px;box-shadow:0 6px 18px rgba(0,0,0,0.06)}
-    .section-title{margin:0 0 10px;font-weight:700; display:flex; align-items:center; gap:12px}
-    .chk{display:inline-flex; align-items:center; gap:8px; font-weight:600; color:var(--text)}
-    .chk input{ width:18px; height:18px; }
+    .section-title{margin:0 0 10px;font-weight:700;display:flex;align-items:center;gap:12px}
+    .chk{display:inline-flex;align-items:center;gap:8px;font-weight:600;color:var(--text)}
+    .chk input{width:18px;height:18px}
     #camera{width:100%;background:#0b1220;border-radius:10px}
     .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
     .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
@@ -44,39 +36,20 @@
     textarea{width:100%;min-height:110px;border:1px solid var(--border);border-radius:10px;padding:12px;font-size:15px}
     .muted{color:var(--muted);font-size:13px}
     .hidden{display:none!important}
-    .sending{position:fixed; inset:0; background:rgba(255,255,255,.85); display:flex; align-items:center; justify-content:center; z-index:9999;}
-    .sending img{ width:min(240px,50vw); height:auto; display:block; }
-
-    /* Toast acima do safe-area (Android) */
-    .toast {
-      position: fixed;
-      left: 50%;
-      bottom: calc(18px + env(safe-area-inset-bottom, 0px));
-      transform: translateX(-50%) translateY(10px);
-      background: #0f172a;
-      color: #fff;
-      padding: 12px 16px;
-      border-radius: 10px;
-      box-shadow: 0 8px 20px rgba(0,0,0,.25);
-      font-size: 15px;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity .25s, transform .25s;
-      z-index: 100000;
-    }
-    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-    .toast.ok  { background: #10b981; }
-    .toast.err { background: #ef4444; }
-
+    .sending{position:fixed;inset:0;background:rgba(255,255,255,.85);display:flex;align-items:center;justify-content:center;z-index:9999}
+    .sending img{width:min(240px,50vw);height:auto;display:block}
+    .toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom, 0px));transform:translateX(-50%) translateY(10px);background:#0f172a;color:#fff;padding:12px 16px;border-radius:10px;box-shadow:0 8px 20px rgba(0,0,0,.25);font-size:15px;opacity:0;pointer-events:none;transition:opacity .25s, transform .25s;z-index:100000}
+    .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+    .toast.ok{background:#10b981}
+    .toast.err{background:#ef4444}
     @media (max-width:520px){.grid2,.grid3{grid-template-columns:1fr}}
-    /* espaçador estrutural no fim para garantir respiro */
-    .safe-bottom{ height: calc(80px + env(safe-area-inset-bottom, 0px)); }
+    .safe-bottom{height:calc(80px + env(safe-area-inset-bottom, 0px))}
   </style>
 </head>
 <body>
 <div class="container">
   <header>
-    <h1>Evidente — Lote 08</h1>
+    <h1>Evidente — <span id="loteAtual">Lote 08</span></h1>
     <div class="subtitle">Selecione a atividade, capture a foto e envie para a planilha</div>
   </header>
 
@@ -118,24 +91,41 @@
     <div class="muted" id="status" style="margin-top:10px"></div>
   </section>
 
-  <!-- espaçador de segurança no fim -->
   <div class="safe-bottom" aria-hidden="true"></div>
 </div>
 
-<!-- overlay com a animação -->
 <div id="sendingOverlay" class="sending hidden" aria-hidden="true">
   <img src="send_data.gif" alt="Enviando…"/>
 </div>
 
-<!-- Toast -->
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <script>
 /* ====== CONFIG ====== */
 var WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbz-TDH_nY7ud6SzChQ4AAcFH8uadsXOkBym80zn22LaP5v8NSelNOvo9X_7swesqvqc/exec';
 var APP_VERSION = '1.0';
-var LOTE = '08';
 /* ==================== */
+
+/* Normaliza & obtém o lote (de ?lot= ou do localStorage). Fallback: 08 */
+(function resolveLot(){
+  function normalizeLot(input){
+    if(!input) return null;
+    let n = String(input).trim().toUpperCase().replace(/^L/,'');
+    if(!/^\d{1,3}$/.test(n)) return null;
+    n = n.padStart(2,'0');
+    return { cod:'L'+n, nome:'Lote '+n };
+  }
+  const p = new URLSearchParams(location.search);
+  let norm = normalizeLot(p.get('lot')) ||
+             normalizeLot(localStorage.getItem('EVIDENTE_LOTE_COD')) ||
+             {cod:'L08', nome:'Lote 08'}; // fallback compatível com esta página
+
+  window.LOTE_COD  = norm.cod;
+  window.LOTE_NOME = norm.nome;
+  localStorage.setItem('EVIDENTE_LOTE_COD',  LOTE_COD);
+  localStorage.setItem('EVIDENTE_LOTE_NOME', LOTE_NOME);
+  var h = document.getElementById('loteAtual'); if(h) h.textContent = LOTE_NOME;
+})();
 
 /* Hook opcional para app nativo informar mock GPS */
 window.__EVIDENTE_MOCK = false;
@@ -217,7 +207,7 @@ function showToast(text, type) {
 /* init UI */
 function init(){
   renderList(atividades);
-  els.search.value = ''; // começa sem filtro
+  els.search.value = '';
   els.search.addEventListener('input', function(){
     var t = els.search.value.toLowerCase();
     var filtered = atividades.filter(function(a){
@@ -226,7 +216,6 @@ function init(){
     renderList(filtered);
   });
 
-  // quando o textarea ganha foco, rola um pouco (depois do teclado subir)
   try{
     els.comment.addEventListener('focus', function(){
       setTimeout(function(){ scrollToShow(els.comment, 140); }, 250);
@@ -248,7 +237,7 @@ function renderList(arr){
   });
 }
 
-/* util: rolar até um elemento com offset */
+/* util */
 function scrollToShow(el, offset){
   try{
     var rect = el.getBoundingClientRect();
@@ -379,13 +368,17 @@ els.capture.onclick = function(){
       var ctx = els.canvas.getContext('2d');
       ctx.drawImage(els.video, 0, 0, w, h);
 
+      // marca d'água com 3 linhas (lote, atividade, data/geo)
       var now = new Date(), dateStr = now.toLocaleString();
-      ctx.fillStyle='rgba(0,0,0,.35)'; ctx.fillRect(0, h-92, w, 92);
-      ctx.fillStyle='#fff'; ctx.font='bold 22px Arial';
-      ctx.fillText(currentCode+' - '+currentActivity, 16, h-60);
-      ctx.font='16px Arial';
       var locLine = (fixLat && fixLng) ? ('LAT '+fixLat.toFixed(6)+'  LONG '+fixLng.toFixed(6)+'  (±'+(fixAcc||'?')+' m)') : 'Sem GPS';
-      ctx.fillText(dateStr+'  •  '+locLine, 16, h-28);
+      var overlayH = 116; // um pouco maior para 3 linhas
+      ctx.fillStyle='rgba(0,0,0,.35)'; ctx.fillRect(0, h-overlayH, w, overlayH);
+      ctx.fillStyle='#fff'; 
+      ctx.font='bold 22px Arial';
+      ctx.fillText('Lote: '+LOTE_NOME, 16, h-overlayH+30);
+      ctx.fillText(currentCode+' - '+currentActivity, 16, h-overlayH+58);
+      ctx.font='16px Arial';
+      ctx.fillText(dateStr+'  •  '+locLine, 16, h-18);
 
       if(stream){ try{ stream.getTracks().forEach(function(t){ t.stop(); }); }catch(e){} stream=null; }
       els.camCard.classList.add('hidden');
@@ -426,12 +419,14 @@ els.save.onclick = function () {
       submission_uuid: uuid,
       app_version: APP_VERSION,
       usuario: usuario,
-      lote: LOTE,
+      lote: LOTE_NOME,            // *** vai para a Coluna L (texto) ***
+      lote_cod: LOTE_COD,         // opcional
       cod_atividade: currentCode,
       atividade: currentActivity,
       obs: obs,
-      chuva: chuvaVal,
-      gps_flag: gpsFlag,
+      chuva: chuvaVal,            // Coluna J
+      fake_gps: gpsFlag,          // Coluna K (nome padronizado)
+      gps_flag: gpsFlag,          // compatibilidade com versões antigas
       lat: (fixLat!=null?fixLat:''), long: (fixLng!=null?fixLng:''), accuracy_m: (fixAcc!=null?fixAcc:''),
       foto_base64: dataURL,
       created_at: Date.now(),
@@ -461,7 +456,8 @@ els.save.onclick = function () {
     // fallback (sem fila): envio direto
     postFormXHR(WEBAPP_URL, {
       action:'upload_foto',
-      usuario:usuario, lote: LOTE,
+      usuario:usuario, 
+      lote: LOTE_NOME,            // envia também no upload (sem prejuízo)
       cod_atividade: currentCode, atividade: currentActivity,
       app_version: APP_VERSION, submission_uuid: uuid,
       lat: item.lat, long: item.long, accuracy_m: item.accuracy_m,
@@ -475,7 +471,8 @@ els.save.onclick = function () {
         cod_atividade: currentCode, atividade: currentActivity,
         foto: up.foto_url || '', foto_id: up.foto_id || '',
         lat: item.lat, long: item.long, obs: obs,
-        chuva: chuvaVal, gps_flag: gpsFlag
+        chuva: chuvaVal, fake_gps: gpsFlag, // nomes padronizados J/K
+        lote: LOTE_NOME                      // *** Coluna L ***
       }, function(grava){
         if(!grava || grava.status!=='OK'){ throwSend('Falha ao gravar a linha'); return; }
         setStatus('✅ Enviado com sucesso!');
@@ -500,7 +497,6 @@ function throwSend(msg){
 /* helpers */
 function setStatus(t){
   els.status.textContent = t;
-  // garante visibilidade acima do safe-area/teclado
   scrollToShow(els.status, 140);
 }
 function showSending(on){ els.sendingOverlay.classList.toggle('hidden', !on); }
@@ -540,5 +536,5 @@ function resetAll(){
 <script src="/app-campo/queue.js"></script>
 </body>
 </html>
-<!-- COLE ATÉ AQUI -->
+
 
